@@ -11,6 +11,7 @@ from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.issues import GitHubIssueIngestor
+from experiment_os.services.review import ReviewService
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.seed import SeedService
 
@@ -68,6 +69,39 @@ def knowledge_search(
     with session_scope() as session:
         results = HybridRetriever(session).search(query, limit=limit)
     typer.echo(json.dumps({"query": query, "results": results}, indent=2))
+
+
+@knowledge_app.command("list")
+def knowledge_list(
+    status: str | None = typer.Option(None, help="Filter by page status."),
+    page_type: str | None = typer.Option(None, help="Filter by page type."),
+) -> None:
+    """List wiki pages for review."""
+    with session_scope() as session:
+        pages = ReviewService(session).list_pages(status=status, page_type=page_type)
+    typer.echo(json.dumps({"pages": pages}, indent=2))
+
+
+@knowledge_app.command("set-status")
+def knowledge_set_status(
+    page_id: str,
+    status: str,
+) -> None:
+    """Set a wiki page status, e.g. draft/accepted/rejected/superseded."""
+    with session_scope() as session:
+        page = ReviewService(session).set_status(page_id, status)
+    typer.echo(json.dumps(page, indent=2))
+
+
+@knowledge_app.command("promote-claim")
+def knowledge_promote_claim(
+    claim_id: str,
+    title: str | None = typer.Option(None, help="Optional title for the promoted card."),
+) -> None:
+    """Promote a claim into a draft knowledge card."""
+    with session_scope() as session:
+        page = ReviewService(session).promote_claim(claim_id, title=title)
+    typer.echo(json.dumps(page, indent=2))
 
 
 @issues_app.command("ingest")

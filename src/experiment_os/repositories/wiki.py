@@ -72,6 +72,27 @@ class WikiRepository:
     def list_pages(self) -> list[WikiPage]:
         return self._session.scalars(select(WikiPage).order_by(WikiPage.id)).all()
 
+    def list_pages_filtered(
+        self,
+        *,
+        status: str | None = None,
+        page_type: str | None = None,
+    ) -> list[WikiPage]:
+        stmt: Select[tuple[WikiPage]] = select(WikiPage)
+        if status:
+            stmt = stmt.where(WikiPage.status == status)
+        if page_type:
+            stmt = stmt.where(WikiPage.type == page_type)
+        return self._session.scalars(stmt.order_by(WikiPage.id)).all()
+
+    def set_status(self, page_id: str, status: str) -> WikiPage:
+        page = self.get_page(page_id)
+        if page is None:
+            raise ValueError(f"Unknown page_id: {page_id}")
+        page.status = status
+        self._session.flush()
+        return page
+
     def list_edges_from(self, page_id: str, edge_type: str | None = None) -> list[WikiEdge]:
         stmt: Select[tuple[WikiEdge]] = select(WikiEdge).where(WikiEdge.source_page_id == page_id)
         if edge_type:
