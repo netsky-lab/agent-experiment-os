@@ -78,6 +78,19 @@ class WikiRepository:
             stmt = stmt.where(WikiEdge.edge_type == edge_type)
         return self._session.scalars(stmt.order_by(WikiEdge.target_page_id)).all()
 
+    def list_edges_from_many(
+        self,
+        page_ids: Iterable[str],
+        edge_type: str | None = None,
+    ) -> list[WikiEdge]:
+        ids = list(dict.fromkeys(page_ids))
+        if not ids:
+            return []
+        stmt: Select[tuple[WikiEdge]] = select(WikiEdge).where(WikiEdge.source_page_id.in_(ids))
+        if edge_type:
+            stmt = stmt.where(WikiEdge.edge_type == edge_type)
+        return self._session.scalars(stmt.order_by(WikiEdge.source_page_id, WikiEdge.target_page_id)).all()
+
     def find_candidate_pages(
         self,
         *,
@@ -116,6 +129,12 @@ def _matches_applicability(
         return False
     if applies_to.get("toolchain") and toolchain and applies_to["toolchain"] != toolchain:
         return False
+
+    repo_type = applies_to.get("repo_type")
+    if repo_type:
+        # Repo type detection is not implemented yet. Keep repo_type-specific
+        # policies eligible so they can appear with their applicability metadata.
+        return True
 
     library = applies_to.get("library")
     if library and libraries:
