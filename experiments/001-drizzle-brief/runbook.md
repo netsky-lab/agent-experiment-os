@@ -30,6 +30,16 @@ docker compose run --rm app uv run experiment-os knowledge set-status <page_id> 
 docker compose run --rm app uv run experiment-os demo mcp-smoke
 ```
 
+## 3b. Run Deterministic A/B Fixture
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-drizzle-fixture
+```
+
+This does not run a real coding agent yet. It records controlled baseline and
+brief-assisted event timelines so the metrics extractor and experiment result
+storage can be validated.
+
 ## 4. Run Agent Conditions
 
 Baseline:
@@ -54,4 +64,3 @@ docker compose run --rm app uv run experiment-os demo mcp-smoke
 ```
 
 Manual observations should be converted into run events in the next implementation.
-

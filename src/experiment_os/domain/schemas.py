@@ -64,3 +64,18 @@ class RunEventInput(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     step_index: int | None = None
 
+
+class ExperimentInput(BaseModel):
+    id: str
+    title: str
+    hypothesis: str
+    status: str = "draft"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExperimentConditionInput(BaseModel):
+    id: str
+    experiment_id: str
+    name: str
+    description: str = ""
+    config: dict[str, Any] = Field(default_factory=dict)

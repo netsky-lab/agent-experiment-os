@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from experiment_os.domain.schemas import RunEventInput, RunStartInput
 from experiment_os.repositories.runs import RunRepository
+from experiment_os.services.metrics import MetricsExtractor
 from experiment_os.services.serialization import event_to_dict, run_to_dict
 
 
@@ -30,5 +31,5 @@ class RunRecorder:
             "run": run_to_dict(run),
             "event_count": len(events),
             "events": [event_to_dict(event) for event in events],
+            "metrics": MetricsExtractor().extract(events),
         }
-

@@ -12,6 +12,7 @@ from experiment_os.mcp_server.client_smoke import run_mcp_smoke
 from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.dependencies import DependencyResolver
+from experiment_os.services.experiments import ExperimentRunner
 from experiment_os.services.issues import GitHubIssueIngestor
 from experiment_os.services.review import ReviewService
 from experiment_os.services.runs import RunRecorder
@@ -23,11 +24,13 @@ demo_app = typer.Typer(help="Demo and smoke-check commands.")
 mcp_app = typer.Typer(help="MCP server commands.")
 knowledge_app = typer.Typer(help="Knowledge search and indexing commands.")
 issues_app = typer.Typer(help="GitHub issue ingestion commands.")
+experiments_app = typer.Typer(help="Experiment runner commands.")
 app.add_typer(db_app, name="db")
 app.add_typer(demo_app, name="demo")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(knowledge_app, name="knowledge")
 app.add_typer(issues_app, name="issues")
+app.add_typer(experiments_app, name="experiments")
 
 
 @db_app.command("check")
@@ -115,6 +118,22 @@ def issues_ingest(
     """Ingest GitHub issues as source snapshots and source wiki pages."""
     with session_scope() as session:
         result = GitHubIssueIngestor(session).ingest(repo=repo, query=query, limit=limit)
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("seed-drizzle")
+def experiments_seed_drizzle() -> None:
+    """Seed the first Drizzle brief experiment definition."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).seed_drizzle_experiment()
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-drizzle-fixture")
+def experiments_run_drizzle_fixture() -> None:
+    """Run a deterministic baseline vs brief-assisted Drizzle fixture."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_drizzle_fixture()
     typer.echo(json.dumps(result, indent=2))
 
 
