@@ -1,18 +1,142 @@
+import json
+
+from alembic import command
+from alembic.config import Config
 import typer
 
-from experiment_os.db import check_database
+from experiment_os.database import check_database, session_scope
+from experiment_os.domain.schemas import BriefRequest, RunEventInput, RunStartInput
+from experiment_os.mcp_server import create_mcp_server
+from experiment_os.retrieval.hybrid import HybridRetriever
+from experiment_os.services.briefs import BriefCompiler
+from experiment_os.services.dependencies import DependencyResolver
+from experiment_os.services.issues import GitHubIssueIngestor
+from experiment_os.services.runs import RunRecorder
+from experiment_os.services.seed import SeedService
 
 app = typer.Typer(help="Experiment OS developer CLI.")
 db_app = typer.Typer(help="Database commands.")
+demo_app = typer.Typer(help="Demo and smoke-check commands.")
+mcp_app = typer.Typer(help="MCP server commands.")
+knowledge_app = typer.Typer(help="Knowledge search and indexing commands.")
+issues_app = typer.Typer(help="GitHub issue ingestion commands.")
 app.add_typer(db_app, name="db")
+app.add_typer(demo_app, name="demo")
+app.add_typer(mcp_app, name="mcp")
+app.add_typer(knowledge_app, name="knowledge")
+app.add_typer(issues_app, name="issues")
 
 
 @db_app.command("check")
 def db_check() -> None:
     """Check Postgres connectivity and pgvector availability."""
     status = check_database()
-    typer.echo(f"database: {status.database}")
-    typer.echo(f"user: {status.user}")
-    typer.echo(f"postgres: {status.server_version}")
-    typer.echo(f"pgvector: {status.vector_version}")
+    typer.echo(f"database: {status['database']}")
+    typer.echo(f"user: {status['user']}")
+    typer.echo(f"postgres: {status['server_version']}")
+    typer.echo(f"pgvector: {status['vector_version']}")
 
+
+@db_app.command("migrate")
+def db_migrate() -> None:
+    """Run Alembic migrations to head."""
+    command.upgrade(Config("alembic.ini"), "head")
+
+
+@db_app.command("seed")
+def db_seed() -> None:
+    """Seed initial wiki knowledge pages and dependency edges."""
+    with session_scope() as session:
+        result = SeedService(session).seed()
+    typer.echo(json.dumps(result, indent=2))
+
+
+@knowledge_app.command("reindex")
+def knowledge_reindex() -> None:
+    """Rebuild local deterministic embeddings for wiki pages."""
+    with session_scope() as session:
+        result = HybridRetriever(session).reindex_all()
+    typer.echo(json.dumps(result, indent=2))
+
+
+@knowledge_app.command("search")
+def knowledge_search(
+    query: str,
+    limit: int = typer.Option(8, help="Maximum number of results."),
+) -> None:
+    """Search wiki knowledge using full-text + pgvector retrieval."""
+    with session_scope() as session:
+        results = HybridRetriever(session).search(query, limit=limit)
+    typer.echo(json.dumps({"query": query, "results": results}, indent=2))
+
+
+@issues_app.command("ingest")
+def issues_ingest(
+    repo: str = typer.Option(..., help="GitHub repo in owner/name form."),
+    query: str = typer.Option(..., help="GitHub issue search query."),
+    limit: int = typer.Option(5, help="Maximum number of issues to ingest."),
+) -> None:
+    """Ingest GitHub issues as source snapshots and source wiki pages."""
+    with session_scope() as session:
+        result = GitHubIssueIngestor(session).ingest(repo=repo, query=query, limit=limit)
+    typer.echo(json.dumps(result, indent=2))
+
+
+@demo_app.command("smoke")
+def demo_smoke() -> None:
+    """Run the v0 work-brief loop without an MCP client."""
+    with session_scope() as session:
+        seed_result = SeedService(session).seed()
+        brief = BriefCompiler(session).compile(
+            BriefRequest(
+                task="Fix a Drizzle migration issue in a Python CLI repo",
+                repo="example/repo",
+                libraries=["drizzle"],
+                agent="opencode",
+                model="gemma",
+                toolchain="shell",
+            )
+        )
+        dependencies = DependencyResolver(session).resolve(brief["required_pages"], depth=2)
+        recorder = RunRecorder(session)
+        run = recorder.start_run(
+            RunStartInput(
+                task="Fix a Drizzle migration issue in a Python CLI repo",
+                repo="example/repo",
+                agent="opencode",
+                model="gemma",
+                toolchain="shell",
+                metadata={"brief_id": brief["brief_id"]},
+            )
+        )
+        event = recorder.record_event(
+            RunEventInput(
+                run_id=run["run_id"],
+                event_type="brief_loaded",
+                payload={
+                    "brief_id": brief["brief_id"],
+                    "required_pages": brief["required_pages"],
+                },
+            )
+        )
+
+    typer.echo(
+        json.dumps(
+            {
+                "seed": seed_result,
+                "brief": brief,
+                "dependencies": dependencies.model_dump(),
+                "run": run,
+                "event": event,
+            },
+            indent=2,
+        )
+    )
+
+
+@mcp_app.command("serve")
+def mcp_serve(
+    transport: str = typer.Option("stdio", help="MCP transport: stdio or streamable-http."),
+) -> None:
+    """Run the MCP server."""
+    create_mcp_server().run(transport=transport)

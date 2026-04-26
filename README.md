@@ -42,8 +42,62 @@ Check the database connection from the Docker network:
 docker compose run --rm app uv run experiment-os db check
 ```
 
+Run migrations and seed the first agent-readable knowledge pages:
+
+```bash
+docker compose run --rm app uv run experiment-os db migrate
+docker compose run --rm app uv run experiment-os db seed
+```
+
+Run the v0 protocol smoke demo:
+
+```bash
+docker compose run --rm app uv run experiment-os demo smoke
+```
+
+Search local knowledge with full-text + pgvector retrieval:
+
+```bash
+docker compose run --rm app uv run experiment-os knowledge search "drizzle migration default"
+```
+
+Ingest GitHub issues as source snapshots and agent-readable source pages:
+
+```bash
+docker compose run --rm app uv run experiment-os issues ingest \
+  --repo drizzle-team/drizzle-orm \
+  --query "migration default" \
+  --limit 3
+```
+
+Run the MCP server over stdio:
+
+```bash
+docker compose run --rm app uv run experiment-os mcp serve
+```
+
+Run the MCP server over streamable HTTP:
+
+```bash
+docker compose run --rm app uv run experiment-os mcp serve --transport streamable-http
+```
+
 On machines where Docker port publishing works normally, the same check can also run from the host:
 
 ```bash
 uv run experiment-os db check
 ```
+
+## Code Layout
+
+The v0 backend is split by responsibility:
+
+- `src/experiment_os/db/` - SQLAlchemy ORM models.
+- `src/experiment_os/domain/` - Pydantic input/output schemas.
+- `src/experiment_os/repositories/` - database access.
+- `src/experiment_os/retrieval/` - full-text + pgvector retrieval.
+- `src/experiment_os/services/` - application use cases.
+- `src/experiment_os/mcp_server/` - MCP transport adapter.
+- `src/experiment_os/cli.py` - developer CLI only.
+
+The MCP tools and CLI commands share the same service layer.
