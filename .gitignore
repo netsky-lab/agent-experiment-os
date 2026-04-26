@@ -63,3 +63,5 @@ traces/
 artifacts/
 exports/
 
+# Local design drafts
+design/
