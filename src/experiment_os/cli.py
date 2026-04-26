@@ -1,4 +1,5 @@
 import json
+import asyncio
 
 from alembic import command
 from alembic.config import Config
@@ -7,6 +8,7 @@ import typer
 from experiment_os.database import check_database, session_scope
 from experiment_os.domain.schemas import BriefRequest, RunEventInput, RunStartInput
 from experiment_os.mcp_server import create_mcp_server
+from experiment_os.mcp_server.client_smoke import run_mcp_smoke
 from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.dependencies import DependencyResolver
@@ -166,6 +168,13 @@ def demo_smoke() -> None:
             indent=2,
         )
     )
+
+
+@demo_app.command("mcp-smoke")
+def demo_mcp_smoke() -> None:
+    """Run the v0 work-brief loop through a real MCP stdio client."""
+    result = asyncio.run(run_mcp_smoke())
+    typer.echo(json.dumps(result, indent=2))
 
 
 @mcp_app.command("serve")
