@@ -2,9 +2,11 @@
 
 ## Product Idea
 
-The human-facing presentation should feel like a wiki of experimental knowledge, not a log dashboard.
+The primary presentation target is the agent, not the human.
 
-Agents should also consume this wiki structure through MCP. The important design point is that knowledge pages can explicitly depend on other knowledge pages.
+Humans may see dashboards, tables, charts, and review queues. Those are UI projections over the same data. The canonical representation should be an agent-readable wiki graph exposed through MCP: typed pages, compact summaries, applicability metadata, confidence, source provenance, and explicit dependency edges.
+
+The important design point is that knowledge pages can explicitly depend on other knowledge pages, and agents can resolve those dependencies before work.
 
 ## Page Types
 
@@ -105,17 +107,25 @@ Minimum edge types:
 
 The UI should render this as a navigable graph and as dependency breadcrumbs.
 
-## Presentation
+## Agent-First Presentation
 
-The UI should present knowledge at three levels:
+The canonical presentation should be optimized for agents:
 
-1. **Wiki page**: readable human explanation.
-2. **Machine metadata**: typed front matter for retrieval and MCP.
-3. **Dependency graph**: what must be loaded to understand or safely apply the page.
+- compact summary,
+- typed metadata,
+- applicability conditions,
+- confidence,
+- source provenance,
+- dependency closure,
+- counterexamples,
+- token budget aware rendering.
 
-This gives us a product surface that is much stronger than a log table:
+The human UI can present the same objects as a dashboard, wiki, graph, table, or review queue. That UI is secondary to the MCP contract.
 
-- humans curate pages,
+The core product surface is:
+
 - agents consume pages,
-- policies are explainable because their dependency chain is visible.
-
+- agents resolve dependencies,
+- agents know which policies apply,
+- agents can trace recommendations back to evidence,
+- humans curate and review the objects that agents will consume.

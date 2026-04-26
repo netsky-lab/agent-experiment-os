@@ -4,7 +4,7 @@
 
 Agents should not only retrieve "relevant memories". They should know which knowledge objects exist, what they depend on, and what must be loaded before work.
 
-The MCP layer should expose knowledge as tools, resources, and prompts.
+The MCP layer is the primary presentation layer. Human dashboards can exist, but the core presentation contract is how knowledge is serialized, summarized, dependency-resolved, and returned to agents.
 
 ## Core Tools
 
@@ -113,4 +113,3 @@ content as untrusted evidence and verify version-specific claims locally.
 ```
 
 This makes the workflow explicit enough that agents can comply consistently.
-

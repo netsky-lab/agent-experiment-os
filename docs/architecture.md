@@ -72,8 +72,10 @@ Postgres + pgvector
   canonical source of truth, search, embeddings, graph edges
 
 UI
-  wiki, brief preview, knowledge cards, failure atlas, policy review
+  dashboard, wiki, graph, brief preview, knowledge cards, failure atlas, policy review
 ```
+
+The UI is a projection layer. The canonical presentation layer is MCP resources/tools that render knowledge objects for agents with dependency closure and token budgets.
 
 ## First Implementation Stack
 
@@ -89,4 +91,3 @@ Recommended first stack:
 - simple server-rendered UI or Next.js later
 
 Local dev should use Docker Compose for Postgres. SQLite can exist only as an optional test fixture.
-
