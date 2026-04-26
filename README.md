@@ -28,3 +28,22 @@ The main agent-facing artifact is a **work brief**: a compact, source-backed pac
 - [MCP dependency flow](./docs/mcp-dependency-flow.md)
 - [Roadmap](./docs/roadmap.md)
 
+## Local Development
+
+Start Postgres with pgvector:
+
+```bash
+docker compose up -d postgres
+```
+
+Check the database connection from the Docker network:
+
+```bash
+docker compose run --rm app uv run experiment-os db check
+```
+
+On machines where Docker port publishing works normally, the same check can also run from the host:
+
+```bash
+uv run experiment-os db check
+```
