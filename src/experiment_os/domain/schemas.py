@@ -79,3 +79,11 @@ class ExperimentConditionInput(BaseModel):
     name: str
     description: str = ""
     config: dict[str, Any] = Field(default_factory=dict)
+
+
+class RunArtifactInput(BaseModel):
+    run_id: str
+    artifact_type: str
+    path: str
+    content_type: str = "text/plain"
+    metadata: dict[str, Any] = Field(default_factory=dict)

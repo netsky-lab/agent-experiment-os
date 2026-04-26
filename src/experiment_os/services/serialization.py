@@ -1,6 +1,6 @@
 from typing import Any
 
-from experiment_os.db.models import Brief, Run, RunEvent, WikiPage
+from experiment_os.db.models import Brief, Run, RunArtifact, RunEvent, WikiPage
 
 
 def page_to_dict(page: WikiPage, *, include_body: bool = False) -> dict[str, Any]:
@@ -60,3 +60,14 @@ def event_to_dict(event: RunEvent) -> dict[str, Any]:
         "created_at": event.created_at.isoformat() if event.created_at else None,
     }
 
+
+def artifact_to_dict(artifact: RunArtifact) -> dict[str, Any]:
+    return {
+        "artifact_id": artifact.id,
+        "run_id": artifact.run_id,
+        "artifact_type": artifact.artifact_type,
+        "path": artifact.path,
+        "content_type": artifact.content_type,
+        "metadata": artifact.artifact_metadata,
+        "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
+    }

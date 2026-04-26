@@ -93,6 +93,9 @@ class Run(Base):
     events: Mapped[list["RunEvent"]] = relationship(
         back_populates="run", cascade="all, delete-orphan", order_by="RunEvent.step_index"
     )
+    artifacts: Mapped[list["RunArtifact"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
 
 
 class RunEvent(Base):
@@ -107,6 +110,22 @@ class RunEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     run: Mapped[Run] = relationship(back_populates="events")
+
+
+class RunArtifact(Base):
+    __tablename__ = "run_artifacts"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"))
+    artifact_type: Mapped[str] = mapped_column(Text, nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    content_type: Mapped[str] = mapped_column(Text, nullable=False, default="text/plain")
+    artifact_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    run: Mapped[Run] = relationship(back_populates="artifacts")
 
 
 class SourceSnapshot(Base):

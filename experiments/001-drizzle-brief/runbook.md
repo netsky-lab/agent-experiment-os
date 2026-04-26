@@ -55,6 +55,24 @@ Brief-assisted:
 Require the agent to call get_work_brief and resolve_dependencies before editing.
 ```
 
+Shell adapter baseline:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-shell \
+  --condition-id condition.001-drizzle-baseline \
+  --command "echo 'modified src/db/schema.ts' && echo 'stale library API error' && echo 'npm run db:generate failed'" \
+  --workdir /workspace
+```
+
+Shell adapter brief-assisted:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-shell \
+  --condition-id condition.001-drizzle-brief-assisted \
+  --command "echo brief=$EXPERIMENT_OS_BRIEF_PATH && echo drizzle-orm@1.0.0-beta.22 && echo 'rg migration drizzle/migrations' && echo 'modified src/db/schema.ts' && echo 'npm run db:generate passed'" \
+  --workdir /workspace
+```
+
 ## 5. Record Observations
 
 Use run events:

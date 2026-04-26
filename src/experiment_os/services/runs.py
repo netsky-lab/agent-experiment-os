@@ -2,10 +2,12 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from experiment_os.domain.schemas import RunEventInput, RunStartInput
+from uuid import uuid4
+
+from experiment_os.domain.schemas import RunArtifactInput, RunEventInput, RunStartInput
 from experiment_os.repositories.runs import RunRepository
 from experiment_os.services.metrics import MetricsExtractor
-from experiment_os.services.serialization import event_to_dict, run_to_dict
+from experiment_os.services.serialization import artifact_to_dict, event_to_dict, run_to_dict
 
 
 class RunRecorder:
@@ -22,14 +24,22 @@ class RunRecorder:
         event = self._runs.append_event(data)
         return event_to_dict(event)
 
+    def record_artifact(self, data: RunArtifactInput) -> dict:
+        if self._runs.get_run(data.run_id) is None:
+            raise ValueError(f"Unknown run_id: {data.run_id}")
+        artifact = self._runs.add_artifact(f"artifact.{uuid4().hex[:12]}", data)
+        return artifact_to_dict(artifact)
+
     def summarize_run(self, run_id: str) -> dict:
         run = self._runs.get_run(run_id)
         if run is None:
             raise ValueError(f"Unknown run_id: {run_id}")
         events = self._runs.list_events(run_id)
+        artifacts = self._runs.list_artifacts(run_id)
         return {
             "run": run_to_dict(run),
             "event_count": len(events),
             "events": [event_to_dict(event) for event in events],
+            "artifacts": [artifact_to_dict(artifact) for artifact in artifacts],
             "metrics": MetricsExtractor().extract(events),
         }

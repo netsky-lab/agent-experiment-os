@@ -55,6 +55,21 @@ Run the v0 protocol smoke demo:
 docker compose run --rm app uv run experiment-os demo smoke
 ```
 
+Run a deterministic experiment fixture:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-drizzle-fixture
+```
+
+Run a shell-command agent condition and capture transcript artifacts:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-shell \
+  --condition-id condition.001-drizzle-brief-assisted \
+  --command "echo drizzle-orm@1.0.0-beta.22 && echo 'rg migration drizzle/migrations' && echo 'npm run db:generate passed'" \
+  --workdir /workspace
+```
+
 Search local knowledge with full-text + pgvector retrieval:
 
 ```bash

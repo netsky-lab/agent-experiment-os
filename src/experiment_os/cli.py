@@ -1,5 +1,6 @@
 import json
 import asyncio
+from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
@@ -134,6 +135,24 @@ def experiments_run_drizzle_fixture() -> None:
     """Run a deterministic baseline vs brief-assisted Drizzle fixture."""
     with session_scope() as session:
         result = ExperimentRunner(session).run_drizzle_fixture()
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-shell")
+def experiments_run_shell(
+    condition_id: str = typer.Option(..., help="Experiment condition id."),
+    command: str = typer.Option(..., help="Shell command to execute as the agent."),
+    workdir: Path = typer.Option(Path("."), help="Working directory for the command."),
+    timeout_seconds: int = typer.Option(300, help="Command timeout."),
+) -> None:
+    """Run a shell-command agent condition and capture transcript artifacts."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_shell_condition(
+            condition_id=condition_id,
+            command=command,
+            workdir=workdir,
+            timeout_seconds=timeout_seconds,
+        )
     typer.echo(json.dumps(result, indent=2))
 
 

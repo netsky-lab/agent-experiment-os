@@ -3,8 +3,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from experiment_os.db.models import Run, RunEvent
-from experiment_os.domain.schemas import RunEventInput, RunStartInput
+from experiment_os.db.models import Run, RunArtifact, RunEvent
+from experiment_os.domain.schemas import RunArtifactInput, RunEventInput, RunStartInput
 
 
 class RunRepository:
@@ -53,6 +53,23 @@ class RunRepository:
             select(RunEvent).where(RunEvent.run_id == run_id).order_by(RunEvent.step_index)
         ).all()
 
+    def add_artifact(self, artifact_id: str, data: RunArtifactInput) -> RunArtifact:
+        artifact = RunArtifact(
+            id=artifact_id,
+            run_id=data.run_id,
+            artifact_type=data.artifact_type,
+            path=data.path,
+            content_type=data.content_type,
+            artifact_metadata=data.metadata,
+        )
+        self._session.add(artifact)
+        self._session.flush()
+        return artifact
+
+    def list_artifacts(self, run_id: str) -> list[RunArtifact]:
+        return self._session.scalars(
+            select(RunArtifact).where(RunArtifact.run_id == run_id).order_by(RunArtifact.created_at)
+        ).all()
+
     def event_exists(self, event_id: UUID) -> bool:
         return self._session.get(RunEvent, event_id) is not None
-
