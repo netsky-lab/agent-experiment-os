@@ -187,6 +187,31 @@ def test_metrics_detect_local_api_surface_before_edit(session):
     assert summary["metrics"]["wrong_file_edits"] == 0
 
 
+def test_metrics_count_forbidden_oracle_edits(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(RunStartInput(task="forbidden edit metrics test"))
+
+    for path in [
+        "tests/test_client.py",
+        "agent_client/vendor_sdk.py",
+        "scripts/test.js",
+    ]:
+        recorder.record_event(
+            RunEventInput(
+                run_id=run["run_id"],
+                event_type="file_edited",
+                payload={"path": path},
+            )
+        )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["test_edit_count"] == 1
+    assert summary["metrics"]["vendor_edit_count"] == 1
+    assert summary["metrics"]["harness_edit_count"] == 1
+    assert summary["metrics"]["forbidden_edit_count"] == 3
+
+
 def test_metrics_count_harness_script_edits_as_wrong_file_edits(session):
     recorder = RunRecorder(session)
     run = recorder.start_run(RunStartInput(task="wrong edit metrics test"))

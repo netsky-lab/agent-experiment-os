@@ -1,4 +1,4 @@
-# Experiment OS
+# Agent Experiment OS
 
 MCP-native experiment knowledge system for coding agents.
 
@@ -16,6 +16,17 @@ issues/docs/runs
 
 The main agent-facing artifact is a **work brief**: a compact, source-backed packet of known risks, dependency-specific issue knowledge, prior failures, and approved interventions that an agent should read before editing code.
 
+## Current Status
+
+Research prototype. The repo already contains:
+
+- MCP server for agent pre-work protocols;
+- Postgres + pgvector-backed knowledge retrieval;
+- source-backed wiki pages with `dependsOn` edges;
+- agent-facing `agent_work_context.v1`;
+- Codex matrix runners for Drizzle version traps and Python API drift;
+- run/event metrics, reports, and review workflows.
+
 ## Research Corpus
 
 - [Deep research](./research/deep-research.md)
@@ -24,37 +35,50 @@ The main agent-facing artifact is a **work brief**: a compact, source-backed pac
 ## Design Docs
 
 - [Architecture](./docs/architecture.md)
+- [Agent work context](./docs/agent-work-context.md)
 - [Codex MCP contract](./docs/codex-mcp.md)
 - [Backend API contract](./docs/backend-api-contract.md)
+- [Experiment methodology](./docs/experiment-methodology.md)
+- [Issue evidence security](./docs/issue-evidence-security.md)
 - [Knowledge wiki model](./docs/knowledge-wiki.md)
 - [MCP dependency flow](./docs/mcp-dependency-flow.md)
 - [Roadmap](./docs/roadmap.md)
 
-## Local Development
+## Quickstart
 
-Start Postgres with pgvector:
+Start Postgres, migrate, seed, and run tests:
 
 ```bash
-docker compose up -d postgres
+make up
+make migrate
+make seed
+make test
 ```
+
+Run the API:
+
+```bash
+make api
+```
+
+Run the MCP server:
+
+```bash
+make mcp
+```
+
+Run the next matrix:
+
+```bash
+make api-drift-matrix
+```
+
+## Local Development
 
 Check the database connection from the Docker network:
 
 ```bash
 docker compose run --rm app uv run experiment-os db check
-```
-
-Run migrations and seed the first agent-readable knowledge pages:
-
-```bash
-docker compose run --rm app uv run experiment-os db migrate
-docker compose run --rm app uv run experiment-os db seed
-```
-
-Run the v0 protocol smoke demo:
-
-```bash
-docker compose run --rm app uv run experiment-os demo smoke
 ```
 
 Run a deterministic experiment fixture:
@@ -137,6 +161,15 @@ docker compose run --rm app uv run experiment-os experiments run-codex-version-t
 
 Progress events are written as JSONL to stderr. The final JSON includes the matrix summary and, by
 default, a markdown result artifact under `experiments/001-drizzle-brief/results/`.
+
+Run the Python API-drift matrix:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access \
+  --approval-policy never
+```
 
 Run a model matrix by repeating `--model`:
 

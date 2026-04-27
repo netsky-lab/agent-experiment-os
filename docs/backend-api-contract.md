@@ -106,6 +106,50 @@ HTTP: `GET /briefs/{brief_id}/evidence-graph`
 }
 ```
 
+## Agent Work Context
+
+HTTP: `POST /briefs`
+
+Compiles a work brief from a `BriefRequest` payload.
+
+HTTP: `GET /briefs/{brief_id}/agent-work-context`
+
+Returns the operational agent-facing presentation:
+
+```json
+{
+  "version": "agent_work_context.v1",
+  "required_load_order": [],
+  "knowledge_boundaries": {},
+  "required_checks": [],
+  "forbidden_actions": [],
+  "tool_sequence": [],
+  "completion_contract": {}
+}
+```
+
+This is the surface an agent or UI should use when it needs to know what must be loaded and verified
+before work begins.
+
+## Knowledge Search
+
+HTTP: `POST /knowledge/search`
+
+```json
+{
+  "query": "python api drift local shim",
+  "libraries": ["example-llm-sdk"],
+  "page_types": ["knowledge_card"],
+  "status": "accepted",
+  "limit": 8
+}
+```
+
+HTTP: `POST /issue-knowledge/search`
+
+Searches source, claim, and knowledge-card pages for a library/topic pair. This endpoint includes
+draft claims because issue-derived claims are useful evidence even before review.
+
 ## Review Actions
 
 Use case: `DashboardReadService.review_actions(page_id)`
@@ -128,3 +172,13 @@ HTTP command endpoints:
 - `POST /claims/{claim_id}/promote/knowledge`
 - `POST /claims/{claim_id}/promote/policy`
 - `POST /claims/{claim_id}/promote/intervention`
+
+Status updates accept a rationale:
+
+```json
+{
+  "status": "accepted",
+  "rationale": "Repeated matrix evidence supports this policy.",
+  "reviewer": "maintainer"
+}
+```

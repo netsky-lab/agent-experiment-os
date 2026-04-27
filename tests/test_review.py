@@ -71,3 +71,31 @@ def test_review_queue_includes_policy_candidates(session):
     queue = ReviewService(session).review_queue()
 
     assert any(item["id"] == "policy.candidate.review" for item in queue)
+
+
+def test_review_status_records_rationale_and_clears_review_required(session):
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.status",
+            type="policy",
+            title="Status policy",
+            status="draft",
+            confidence="medium",
+            summary="A policy candidate.",
+            metadata={"review_required": True},
+        )
+    )
+
+    page = ReviewService(session).set_status(
+        "policy.candidate.status",
+        "accepted",
+        rationale="Repeated matrix evidence supports this policy.",
+        reviewer="maintainer",
+    )
+
+    assert page["status"] == "accepted"
+    assert page["metadata"]["review_required"] is False
+    assert page["metadata"]["review"]["rationale"] == (
+        "Repeated matrix evidence supports this policy."
+    )
+    assert page["metadata"]["review"]["reviewer"] == "maintainer"

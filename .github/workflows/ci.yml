@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start Postgres
+        run: docker compose up -d postgres
+
+      - name: Run tests
+        run: docker compose run --rm app uv run pytest
+
+      - name: Compile Python
+        run: docker compose run --rm app uv run python -m compileall src
+
+      - name: Check whitespace
+        run: git diff --check

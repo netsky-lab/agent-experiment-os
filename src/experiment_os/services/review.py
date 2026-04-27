@@ -32,8 +32,25 @@ class ReviewService:
         ]
         return [page_to_dict(page) for page in queued[:limit]]
 
-    def set_status(self, page_id: str, status: str) -> dict:
+    def set_status(
+        self,
+        page_id: str,
+        status: str,
+        *,
+        rationale: str | None = None,
+        reviewer: str | None = None,
+    ) -> dict:
         page = self._wiki.set_status(page_id, status)
+        metadata = dict(page.page_metadata)
+        metadata["review"] = {
+            **metadata.get("review", {}),
+            "status": status,
+            "rationale": rationale,
+            "reviewer": reviewer,
+        }
+        if status in {"accepted", "rejected", "deprecated"}:
+            metadata["review_required"] = False
+        page.page_metadata = metadata
         self._retriever.reindex_all()
         return page_to_dict(page)
 
