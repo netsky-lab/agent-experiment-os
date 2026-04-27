@@ -1,6 +1,6 @@
 # Python API Drift Experiment
 
-Status: scaffold.
+Status: matrix-ready.
 
 Purpose: test whether Experiment OS generalizes beyond Drizzle/version traps.
 
@@ -20,7 +20,25 @@ Current oracle:
 - forbidden edits: `agent_client/vendor_sdk.py`, `tests/`, dependency metadata;
 - command: `python -m pytest`.
 
-Next implementation step:
+Experiment OS knowledge:
 
-- add Python API drift matrix conditions after the Drizzle hard matrix produces a stronger baseline
-  failure signal.
+- `knowledge.python-api-drift-local-shim`
+- `failure.stale-api-drift`
+- `intervention.local-api-surface-first`
+- `claim.issue.example-llm-sdk.upgrade-advice` as evidence-only issue knowledge
+
+Matrix command:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access \
+  --approval-policy never
+```
+
+Expected comparison:
+
+- baseline may solve the narrow fixture, but has no explicit evidence boundary;
+- static brief should push local shim inspection before editing;
+- MCP brief should record pre-work protocol, dependency loading, local API surface checks, and final
+  verification as first-class run memory.

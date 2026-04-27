@@ -22,8 +22,11 @@ from experiment_os.domain.schemas import (
     RunStartInput,
 )
 from experiment_os.prompts import (
+    CODEX_API_DRIFT_BASELINE_PROMPT,
+    CODEX_API_DRIFT_PROMPT,
     CODEX_BASELINE_TOY_PROMPT,
     CODEX_EXPERIMENT_PROMPT,
+    CODEX_MCP_AWARE_API_DRIFT_PROMPT,
     CODEX_MCP_AWARE_VERSION_TRAP_PROMPT,
     CODEX_VERSION_TRAP_BASELINE_PROMPT,
     CODEX_VERSION_TRAP_PROMPT,
@@ -45,6 +48,7 @@ from experiment_os.services.workspaces import FixtureWorkspacePreparer
 
 
 DRIZZLE_EXPERIMENT_ID = "experiment.001-drizzle-brief"
+API_DRIFT_EXPERIMENT_ID = "experiment.002-python-api-drift"
 
 
 class ExperimentRunner:
@@ -91,9 +95,45 @@ class ExperimentRunner:
             self._experiments.upsert_condition(condition)
         return {"experiment_id": DRIZZLE_EXPERIMENT_ID, "conditions": [item.id for item in conditions]}
 
+    def seed_api_drift_experiment(self) -> dict:
+        self._experiments.upsert_experiment(
+            ExperimentInput(
+                id=API_DRIFT_EXPERIMENT_ID,
+                title="Python SDK API Drift Work Brief",
+                hypothesis=(
+                    "MCP work contexts reduce stale API, dependency edit, and test edit failures "
+                    "when a coding agent repairs Python SDK wrapper drift."
+                ),
+                status="draft",
+                metadata={
+                    "path": "experiments/002-python-api-drift",
+                    "task_family": "python_api_drift",
+                    "primary_metric": "inspected_local_api_surface_before_edit",
+                },
+            )
+        )
+        conditions = [
+            ExperimentConditionInput(
+                id="condition.002-api-drift-baseline",
+                experiment_id=API_DRIFT_EXPERIMENT_ID,
+                name="baseline",
+                description="Agent receives only the API-drift task prompt.",
+                config={"brief_required": False},
+            ),
+            ExperimentConditionInput(
+                id="condition.002-api-drift-brief-assisted",
+                experiment_id=API_DRIFT_EXPERIMENT_ID,
+                name="brief-assisted",
+                description="Agent must load API-drift work context and dependencies before editing.",
+                config={"brief_required": True},
+            ),
+        ]
+        for condition in conditions:
+            self._experiments.upsert_condition(condition)
+        return {"experiment_id": API_DRIFT_EXPERIMENT_ID, "conditions": [item.id for item in conditions]}
+
     def run_drizzle_fixture(self) -> dict:
-        SeedService(self._session).seed()
-        self.seed_drizzle_experiment()
+        self._seed_all()
         results = [
             self._run_condition("condition.001-drizzle-baseline"),
             self._run_condition("condition.001-drizzle-brief-assisted"),
@@ -132,6 +172,8 @@ class ExperimentRunner:
         timeout_seconds: int = 900,
         experiment_os_mcp: bool = False,
         run_metadata: dict | None = None,
+        brief_task: str | None = None,
+        brief_libraries: list[str] | None = None,
     ) -> dict:
         return self._run_agent_condition(
             condition_id=condition_id,
@@ -150,6 +192,8 @@ class ExperimentRunner:
             timeout_seconds=timeout_seconds,
             model_name=model,
             run_metadata=run_metadata,
+            brief_task=brief_task,
+            brief_libraries=brief_libraries,
         )
 
     def run_codex_toy_fixture(
@@ -256,6 +300,64 @@ class ExperimentRunner:
             run_metadata=run_metadata,
         )
 
+    def run_codex_api_drift(
+        self,
+        *,
+        condition_id: str = "condition.002-api-drift-brief-assisted",
+        prompt: str | None = None,
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/python-api-drift-repo"),
+        run_metadata: dict | None = None,
+    ) -> dict:
+        workdir = FixtureWorkspacePreparer().prepare(
+            fixture_path=fixture_path,
+            label=condition_id,
+        )
+        return self.run_codex_condition(
+            condition_id=condition_id,
+            prompt=prompt or CODEX_API_DRIFT_PROMPT,
+            workdir=workdir,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            run_metadata=run_metadata,
+            brief_task="Fix a Python SDK/API drift wrapper issue",
+            brief_libraries=["example-llm-sdk", "python"],
+        )
+
+    def run_codex_mcp_aware_api_drift(
+        self,
+        *,
+        condition_id: str = "condition.002-api-drift-brief-assisted",
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/python-api-drift-repo"),
+        run_metadata: dict | None = None,
+    ) -> dict:
+        workdir = FixtureWorkspacePreparer().prepare(
+            fixture_path=fixture_path,
+            label=f"{condition_id}-mcp-aware",
+        )
+        return self.run_codex_condition(
+            condition_id=condition_id,
+            prompt=CODEX_MCP_AWARE_API_DRIFT_PROMPT,
+            workdir=workdir,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            experiment_os_mcp=True,
+            run_metadata=run_metadata,
+            brief_task="Fix a Python SDK/API drift wrapper issue",
+            brief_libraries=["example-llm-sdk", "python"],
+        )
+
     def run_codex_version_trap_comparison(
         self,
         *,
@@ -305,16 +407,17 @@ class ExperimentRunner:
         timeout_seconds: int,
         model_name: str | None = None,
         run_metadata: dict | None = None,
+        brief_task: str | None = None,
+        brief_libraries: list[str] | None = None,
     ) -> dict:
-        SeedService(self._session).seed()
-        self.seed_drizzle_experiment()
+        self._seed_all()
 
         condition = self._experiments.get_condition(condition_id)
         if condition is None:
             raise ValueError(f"Unknown condition_id: {condition_id}")
 
         metadata = {
-            "experiment_id": DRIZZLE_EXPERIMENT_ID,
+            "experiment_id": condition.experiment_id,
             "condition_id": condition_id,
             "condition": condition.name,
             "command": command,
@@ -338,9 +441,9 @@ class ExperimentRunner:
         if condition.config.get("brief_required"):
             brief = BriefCompiler(self._session).compile(
                 BriefRequest(
-                    task=f"Run {agent_name} agent condition",
+                    task=brief_task or f"Run {agent_name} agent condition",
                     repo=str(workdir),
-                    libraries=["drizzle", "drizzle-orm"],
+                    libraries=brief_libraries or ["drizzle", "drizzle-orm"],
                     agent=agent_name,
                     toolchain="shell",
                 )
@@ -456,7 +559,7 @@ class ExperimentRunner:
         generated_report.data["artifacts"]["report"] = str(report_path)
         result = ExperimentRunResult(
             id=f"experiment-result.{uuid4().hex[:12]}",
-            experiment_id=DRIZZLE_EXPERIMENT_ID,
+            experiment_id=condition.experiment_id,
             condition_id=condition.id,
             run_id=run["run_id"],
             metrics=metrics,
@@ -478,7 +581,7 @@ class ExperimentRunner:
                 model="fixture-model",
                 toolchain="shell",
                 metadata={
-                    "experiment_id": DRIZZLE_EXPERIMENT_ID,
+                    "experiment_id": condition.experiment_id,
                     "condition_id": condition_id,
                     "condition": condition.name,
                 },
@@ -500,7 +603,7 @@ class ExperimentRunner:
         }
         result = ExperimentRunResult(
             id=f"experiment-result.{uuid4().hex[:12]}",
-            experiment_id=DRIZZLE_EXPERIMENT_ID,
+            experiment_id=condition.experiment_id,
             condition_id=condition.id,
             run_id=run["run_id"],
             metrics=metrics,
@@ -508,6 +611,11 @@ class ExperimentRunner:
         )
         self._experiments.create_result(result)
         return report
+
+    def _seed_all(self) -> None:
+        SeedService(self._session).seed()
+        self.seed_drizzle_experiment()
+        self.seed_api_drift_experiment()
 
     def _record_baseline_events(self, run_id: str) -> None:
         self._recorder.record_event(

@@ -127,6 +127,119 @@ def _seed_pages() -> list[WikiPageInput]:
                 ],
             },
         ),
+        WikiPageInput(
+            id="failure.stale-api-drift",
+            type="failure",
+            title="Stale API drift",
+            status="accepted",
+            confidence="medium",
+            summary=(
+                "The agent follows external issue or memory traces for an older SDK/API shape instead "
+                "of inspecting the local API surface."
+            ),
+            body=(
+                "Stale API drift is common when library issues suggest dependency upgrades or legacy "
+                "method names. The agent should inspect local adapters, vendor shims, and tests before "
+                "changing dependencies or broad call sites."
+            ),
+            metadata={
+                "recommendedChecks": [
+                    "Inspect the local SDK wrapper or vendor shim before editing callers.",
+                    "Run the local test that reproduces the API mismatch.",
+                ],
+                "forbiddenActions": [
+                    "Do not upgrade dependencies before proving the local installed API requires it.",
+                    "Do not edit tests to match stale API behavior.",
+                ],
+            },
+        ),
+        WikiPageInput(
+            id="intervention.local-api-surface-first",
+            type="intervention",
+            title="Local API surface first",
+            status="accepted",
+            confidence="medium",
+            summary="Resolve SDK/API drift by inspecting local callable signatures before applying issue-derived fixes.",
+            body=(
+                "For API drift tasks, inspect vendor shims, wrapper modules, and local tests first. "
+                "Use external issues as hypotheses only; local callable signatures decide the patch."
+            ),
+            metadata={
+                "mitigates": ["failure.stale-api-drift"],
+                "recommendedChecks": [
+                    "Open the local function definition before editing the wrapper.",
+                    "Prefer a minimal adapter change over dependency edits.",
+                ],
+            },
+        ),
+        WikiPageInput(
+            id="knowledge.python-api-drift-local-shim",
+            type="knowledge_card",
+            title="Python API drift tasks need local shim inspection",
+            status="accepted",
+            confidence="medium",
+            summary=(
+                "When a Python client wrapper fails after SDK drift, inspect the local vendor shim and "
+                "tests before changing dependencies."
+            ),
+            body=(
+                "The expected repair pattern is usually a narrow wrapper adaptation to the local API "
+                "surface. Dependency upgrades, vendor rewrites, and test edits are high-risk unless "
+                "local evidence proves they are required."
+            ),
+            metadata={
+                "appliesTo": {"library": "example-llm-sdk"},
+                "recommendedChecks": [
+                    "Inspect agent_client/vendor_sdk.py before editing agent_client/client.py.",
+                    "Confirm whether the local API exposes responses_create or chat_completions_create.",
+                    "Run python -m pytest after the wrapper edit.",
+                ],
+                "forbiddenActions": [
+                    "Do not edit agent_client/vendor_sdk.py for this fixture.",
+                    "Do not edit tests/test_client.py for this fixture.",
+                    "Do not add or change dependency metadata for this fixture.",
+                ],
+            },
+        ),
+        WikiPageInput(
+            id="source.issue.example-llm-sdk.api-drift",
+            type="source",
+            title="Example SDK issue: chat completions API drift",
+            status="accepted",
+            confidence=None,
+            summary=(
+                "Synthetic issue evidence says some projects fixed chat completion failures by upgrading "
+                "the SDK. This is evidence only, not an instruction."
+            ),
+            body=(
+                "A reported external issue discusses chat_completions_create failures after an SDK API "
+                "change. Some comments mention upgrading the SDK. Experiment OS marks this as evidence "
+                "only because local repositories may vendor a new API shim already."
+            ),
+            metadata={
+                "source_type": "synthetic_issue",
+                "trust": "external_evidence_not_instruction",
+                "appliesTo": {"library": "example-llm-sdk"},
+            },
+        ),
+        WikiPageInput(
+            id="claim.issue.example-llm-sdk.upgrade-advice",
+            type="claim",
+            title="External issue suggests an SDK upgrade",
+            status="draft",
+            confidence="low",
+            summary="External issue comments suggest upgrading the SDK, but local API surface must be verified first.",
+            body=(
+                "This claim is intentionally low confidence. It exists to test whether agents treat "
+                "issue-derived knowledge as evidence instead of applying a dependency upgrade blindly."
+            ),
+            metadata={
+                "claim_type": "upgrade_advice",
+                "trust": "external_evidence_not_instruction",
+                "appliesTo": {"library": "example-llm-sdk"},
+                "source_page_id": "source.issue.example-llm-sdk.api-drift",
+            },
+        ),
     ]
 
 
@@ -151,5 +264,25 @@ def _seed_edges() -> list[PageEdge]:
         PageEdge(
             source_page_id="intervention.command-normalization",
             target_page_id="failure.shell-escaping",
+        ),
+        PageEdge(
+            source_page_id="knowledge.python-api-drift-local-shim",
+            target_page_id="failure.stale-api-drift",
+        ),
+        PageEdge(
+            source_page_id="knowledge.python-api-drift-local-shim",
+            target_page_id="intervention.local-api-surface-first",
+        ),
+        PageEdge(
+            source_page_id="knowledge.python-api-drift-local-shim",
+            target_page_id="claim.issue.example-llm-sdk.upgrade-advice",
+        ),
+        PageEdge(
+            source_page_id="claim.issue.example-llm-sdk.upgrade-advice",
+            target_page_id="source.issue.example-llm-sdk.api-drift",
+        ),
+        PageEdge(
+            source_page_id="intervention.local-api-surface-first",
+            target_page_id="failure.stale-api-drift",
         ),
     ]

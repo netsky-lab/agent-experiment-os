@@ -13,7 +13,8 @@ codex mcp add experiment-os -- docker compose run --rm app uv run experiment-os 
 Before editing code, a Codex run should:
 
 1. Call `start_pre_work_protocol` for the task, repo, agent, model, toolchain, and libraries.
-2. Read `agent_dependency_graph.load_order` before the first file edit.
+2. Read `agent_work_context.required_load_order` and `agent_dependency_graph.load_order` before the
+   first file edit.
 3. Search issue-derived knowledge with `search_issue_knowledge` for library-specific risks when the
    brief points at issue-backed evidence.
 4. Record high-signal events with `record_run_event`, especially version checks, file inspections,
@@ -23,6 +24,15 @@ Before editing code, a Codex run should:
 
 `get_work_brief`, `resolve_dependencies`, and `record_run_start` remain available as lower-level
 tools, but `start_pre_work_protocol` is the default v1 entry point.
+
+`agent_work_context.v1` is the strict presentation contract for agents. It contains:
+
+- `required_load_order`: pages that must be loaded before editing;
+- `knowledge_boundaries`: decision-capable pages, domain context, and evidence-only pages;
+- `required_checks`: local facts the agent should verify;
+- `forbidden_actions`: actions that require explicit local proof;
+- `tool_sequence`: the expected pre-work, edit, verification, and summary order;
+- `completion_contract`: what the final answer may and may not claim.
 
 Agents can call `get_event_recording_contract` to get the explicit event schema. This is the product
 path; JSONL transcript mining is only a fallback for experiments that cannot modify the agent prompt.

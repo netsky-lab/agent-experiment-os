@@ -36,7 +36,15 @@ class HybridRetriever:
             count += 1
         return {"embedded_pages": count}
 
-    def search(self, query: str, *, limit: int = 8) -> list[dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        *,
+        limit: int = 8,
+        libraries: list[str] | None = None,
+        page_types: list[str] | None = None,
+        status: str | None = "accepted",
+    ) -> list[dict[str, Any]]:
         if not query.strip():
             return []
         embedding = vector_literal(self._embeddings.embed(query))
@@ -70,7 +78,7 @@ class HybridRetriever:
                       END
                     ) AS score
                   FROM wiki_pages p, q
-                  WHERE p.status = 'accepted'
+                  WHERE (CAST(:status AS text) IS NULL OR p.status = CAST(:status AS text))
                     AND (
                       p.search_vector @@ q.tsq
                       OR p.embedding IS NOT NULL
@@ -80,15 +88,20 @@ class HybridRetriever:
                   id, type, title, status, confidence, summary, metadata,
                   text_score, semantic_score, score
                 FROM scored
-                WHERE score > 0
+                WHERE score > -1
                 ORDER BY score DESC, id
                 LIMIT :limit
                 """
             ),
-            {"query": query, "embedding": embedding, "limit": limit},
+            {
+                "query": query,
+                "embedding": embedding,
+                "limit": limit * 4 if libraries or page_types else limit,
+                "status": status,
+            },
         ).mappings()
 
-        return [
+        results = [
             {
                 "id": row["id"],
                 "type": row["type"],
@@ -103,3 +116,39 @@ class HybridRetriever:
             }
             for row in rows
         ]
+        filtered = [
+            result
+            for result in results
+            if _matches_filters(result, libraries=libraries or [], page_types=page_types or [])
+        ]
+        return filtered[:limit]
+
+
+def _matches_filters(
+    result: dict[str, Any],
+    *,
+    libraries: list[str],
+    page_types: list[str],
+) -> bool:
+    if page_types and result["type"] not in set(page_types):
+        return False
+    if not libraries:
+        return True
+
+    metadata = result.get("metadata") or {}
+    applies_to = metadata.get("appliesTo") or {}
+    library = str(applies_to.get("library", "")).lower()
+    normalized = {item.lower() for item in libraries}
+    if library and library in normalized:
+        return True
+
+    haystack = " ".join(
+        [
+            result.get("id", ""),
+            result.get("title", ""),
+            result.get("summary", ""),
+            str(metadata.get("repo", "")),
+            str(metadata.get("library", "")),
+        ]
+    ).lower()
+    return any(item in haystack for item in normalized)

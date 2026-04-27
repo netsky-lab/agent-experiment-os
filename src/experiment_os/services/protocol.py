@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from experiment_os.domain.schemas import BriefRequest, RunEventInput, RunStartInput
 from experiment_os.repositories.briefs import BriefRepository
+from experiment_os.services.agent_presentation import AgentWorkContextPresenter
 from experiment_os.services.agent_graph import AgentDependencyGraphPresenter
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.dependencies import DependencyResolver
@@ -59,18 +60,22 @@ class AgentWorkProtocol:
                 )
             )
 
+        agent_work_context = AgentWorkContextPresenter().present(
+            request=request,
+            brief=brief,
+            dependencies=dependencies.model_dump(),
+            agent_dependency_graph=agent_graph,
+            run=run_record,
+        )
+
         return {
             "protocol": "experiment_os.pre_work.v1",
             "brief": brief,
             "dependencies": dependencies.model_dump(),
             "agent_dependency_graph": agent_graph,
+            "agent_work_context": agent_work_context,
             "run": run_record,
-            "next_actions": [
-                "Read every load_required node in agent_dependency_graph.load_order.",
-                "Verify local versions and repository conventions before editing.",
-                "Record package_version_checked, file_inspected, file_edited, test_run, and failure_observed events.",
-                "Call summarize_run before final answer when a run_id is present.",
-            ],
+            "next_actions": agent_work_context["tool_sequence"],
         }
 
     def agent_graph_for_brief(self, brief_id: str, *, dependency_depth: int = 2) -> dict[str, Any]:
@@ -87,4 +92,41 @@ class AgentWorkProtocol:
             required_pages=data["required_pages"],
             recommended_pages=data["recommended_pages"],
             dependency_graph=dependencies.model_dump(),
+        )
+
+    def agent_work_context_for_brief(
+        self,
+        brief_id: str,
+        *,
+        dependency_depth: int = 2,
+    ) -> dict[str, Any]:
+        brief = self._briefs.get(brief_id)
+        if brief is None:
+            raise ValueError(f"Unknown brief_id: {brief_id}")
+        data = brief_to_dict(brief)
+        request = BriefRequest(
+            task=data["task"],
+            repo=data["repo"],
+            libraries=data["libraries"],
+            agent=data["agent"],
+            model=data["model"],
+            toolchain=data["toolchain"],
+            token_budget=data["token_budget"],
+        )
+        dependencies = DependencyResolver(self._session).resolve(
+            data["required_pages"],
+            depth=dependency_depth,
+            token_budget=data["token_budget"],
+        )
+        agent_graph = AgentDependencyGraphPresenter().present(
+            required_pages=data["required_pages"],
+            recommended_pages=data["recommended_pages"],
+            dependency_graph=dependencies.model_dump(),
+        )
+        return AgentWorkContextPresenter().present(
+            request=request,
+            brief=data,
+            dependencies=dependencies.model_dump(),
+            agent_dependency_graph=agent_graph,
+            run=None,
         )

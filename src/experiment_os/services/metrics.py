@@ -16,6 +16,12 @@ class MetricsExtractor:
             if event.event_type == "file_inspected"
             and _looks_like_migration_inspection(event.payload)
         ]
+        api_surface_inspection_indices = [
+            event.step_index
+            for event in events
+            if event.event_type in {"file_inspected", "local_api_surface_checked"}
+            and _looks_like_api_surface_inspection(event.payload)
+        ]
         test_runs = [event for event in events if event.event_type == "test_run"]
         test_outcomes = [
             outcome
@@ -42,6 +48,9 @@ class MetricsExtractor:
             ),
             "inspected_migration_conventions_before_edit": _before_first_edit(
                 migration_inspection_indices, first_edit_index
+            ),
+            "inspected_local_api_surface_before_edit": _before_first_edit(
+                api_surface_inspection_indices, first_edit_index
             ),
             "tests_run": len(test_runs),
             "tests_passing": bool(test_outcomes) and test_outcomes[-1] is True,
@@ -113,6 +122,28 @@ def _looks_like_migration_inspection(payload: dict) -> bool:
     return "migration" in text
 
 
+def _looks_like_api_surface_inspection(payload: dict) -> bool:
+    text = " ".join(
+        [
+            *_payload_paths(payload),
+            str(payload.get("reason", "")),
+            str(payload.get("purpose", "")),
+            str(payload.get("finding", "")),
+            str(payload.get("api", "")),
+        ]
+    ).lower()
+    return any(
+        token in text
+        for token in [
+            "vendor_sdk",
+            "responses_create",
+            "chat_completions_create",
+            "api surface",
+            "local api",
+        ]
+    )
+
+
 def _wrong_file_edits(edits: list[RunEvent]) -> int:
     count = 0
     for event in edits:
@@ -129,6 +160,7 @@ def _looks_like_allowed_drizzle_task_edit(path: str) -> bool:
         or "drizzle.config" in path
         or "drizzle/migrations/" in path
         or "/migrations/" in path
+        or path.endswith("agent_client/client.py")
     )
 
 

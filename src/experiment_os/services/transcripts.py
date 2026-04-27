@@ -51,7 +51,10 @@ def _package_version_event(run_id: str, line: str) -> RunEventInput | None:
 
 def _file_inspection_event(run_id: str, line: str) -> RunEventInput | None:
     match = re.search(
-        r"(?:inspect|read|cat|open|ls|grep|rg).*?([\w./-]*(?:migration|schema)[\w./-]*)",
+        (
+            r"(?:inspect|read|cat|open|ls|grep|rg).*?([\w./-]*(?:migration|schema|"
+            r"vendor_sdk|agent_client/client|tests/test_client|pyproject)[\w./-]*)"
+        ),
         line,
         re.IGNORECASE,
     )

@@ -7,11 +7,18 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from experiment_os.prompts import (
+    CODEX_API_DRIFT_BASELINE_PROMPT,
+    CODEX_API_DRIFT_PROMPT,
+    CODEX_MCP_AWARE_API_DRIFT_PROMPT,
     CODEX_MCP_AWARE_VERSION_TRAP_PROMPT,
     CODEX_VERSION_TRAP_BASELINE_PROMPT,
     CODEX_VERSION_TRAP_PROMPT,
 )
-from experiment_os.services.experiments import DRIZZLE_EXPERIMENT_ID, ExperimentRunner
+from experiment_os.services.experiments import (
+    API_DRIFT_EXPERIMENT_ID,
+    DRIZZLE_EXPERIMENT_ID,
+    ExperimentRunner,
+)
 from experiment_os.services.policy_candidates import PolicyCandidateService
 
 
@@ -43,12 +50,72 @@ class ExperimentMatrixRunner:
         write_result_artifact: bool = False,
         result_dir: Path = Path("experiments/001-drizzle-brief/results"),
     ) -> dict:
+        return self._run_codex_matrix(
+            matrix_kind="version_trap",
+            fixture_path=fixture_path,
+            repeat_count=repeat_count,
+            model=model,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            conditions=_version_trap_conditions(include_mcp=include_mcp),
+            progress=progress,
+            write_result_artifact=write_result_artifact,
+            result_dir=result_dir,
+        )
+
+    def run_api_drift_matrix(
+        self,
+        *,
+        repeat_count: int = 1,
+        model: str | None = None,
+        models: list[str | None] | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/python-api-drift-repo"),
+        include_mcp: bool = True,
+        progress: Callable[[dict], None] | None = None,
+        write_result_artifact: bool = False,
+        result_dir: Path = Path("experiments/002-python-api-drift/results"),
+    ) -> dict:
+        return self._run_codex_matrix(
+            matrix_kind="api_drift",
+            fixture_path=fixture_path,
+            repeat_count=repeat_count,
+            model=model,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            conditions=_api_drift_conditions(include_mcp=include_mcp),
+            progress=progress,
+            write_result_artifact=write_result_artifact,
+            result_dir=result_dir,
+        )
+
+    def _run_codex_matrix(
+        self,
+        *,
+        matrix_kind: str,
+        fixture_path: Path,
+        repeat_count: int,
+        model: str | None,
+        models: list[str | None] | None,
+        sandbox: str,
+        approval_policy: str,
+        timeout_seconds: int,
+        conditions: list[MatrixCondition],
+        progress: Callable[[dict], None] | None,
+        write_result_artifact: bool,
+        result_dir: Path,
+    ) -> dict:
         if repeat_count < 1:
             raise ValueError("repeat_count must be at least 1")
 
-        matrix_id = f"matrix.version-trap.{uuid4().hex[:12]}"
+        matrix_id = f"matrix.{matrix_kind.replace('_', '-')}.{uuid4().hex[:12]}"
         matrix_models = _matrix_models(model=model, models=models)
-        conditions = _version_trap_conditions(include_mcp=include_mcp)
         runs: list[dict] = []
 
         _emit_progress(
@@ -68,7 +135,7 @@ class ExperimentMatrixRunner:
                 for condition in conditions:
                     run_metadata = {
                         "matrix_id": matrix_id,
-                        "matrix_kind": "version_trap",
+                        "matrix_kind": matrix_kind,
                         "matrix_condition": condition.id,
                         "matrix_model": model_label,
                         "matrix_repeat_index": repeat_index,
@@ -86,8 +153,9 @@ class ExperimentMatrixRunner:
                         },
                     )
                     if condition.mcp_enabled:
-                        run = self._runner.run_codex_mcp_aware_version_trap(
-                            condition_id=condition.condition_id,
+                        run = self._run_mcp_condition(
+                            matrix_kind=matrix_kind,
+                            condition=condition,
                             model=model_value,
                             sandbox=sandbox,
                             approval_policy=approval_policy,
@@ -96,9 +164,9 @@ class ExperimentMatrixRunner:
                             run_metadata=run_metadata,
                         )
                     else:
-                        run = self._runner.run_codex_toy_fixture(
-                            condition_id=condition.condition_id,
-                            prompt=condition.prompt,
+                        run = self._run_static_condition(
+                            matrix_kind=matrix_kind,
+                            condition=condition,
                             model=model_value,
                             sandbox=sandbox,
                             approval_policy=approval_policy,
@@ -132,8 +200,8 @@ class ExperimentMatrixRunner:
 
         report = {
             "matrix_id": matrix_id,
-            "experiment_id": DRIZZLE_EXPERIMENT_ID,
-            "matrix_kind": "version_trap",
+            "experiment_id": _matrix_experiment_id(matrix_kind),
+            "matrix_kind": matrix_kind,
             "repeat_count": repeat_count,
             "fixture_path": str(fixture_path),
             "models": [_model_label(item) for item in matrix_models],
@@ -163,7 +231,75 @@ class ExperimentMatrixRunner:
         )
         return report
 
+    def _run_static_condition(
+        self,
+        *,
+        matrix_kind: str,
+        condition: MatrixCondition,
+        model: str | None,
+        sandbox: str,
+        approval_policy: str,
+        timeout_seconds: int,
+        fixture_path: Path,
+        run_metadata: dict,
+    ) -> dict:
+        if matrix_kind == "api_drift":
+            return self._runner.run_codex_api_drift(
+                condition_id=condition.condition_id,
+                prompt=condition.prompt,
+                model=model,
+                sandbox=sandbox,
+                approval_policy=approval_policy,
+                timeout_seconds=timeout_seconds,
+                fixture_path=fixture_path,
+                run_metadata=run_metadata,
+            )
+        return self._runner.run_codex_toy_fixture(
+            condition_id=condition.condition_id,
+            prompt=condition.prompt,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+            run_metadata=run_metadata,
+        )
+
+    def _run_mcp_condition(
+        self,
+        *,
+        matrix_kind: str,
+        condition: MatrixCondition,
+        model: str | None,
+        sandbox: str,
+        approval_policy: str,
+        timeout_seconds: int,
+        fixture_path: Path,
+        run_metadata: dict,
+    ) -> dict:
+        if matrix_kind == "api_drift":
+            return self._runner.run_codex_mcp_aware_api_drift(
+                condition_id=condition.condition_id,
+                model=model,
+                sandbox=sandbox,
+                approval_policy=approval_policy,
+                timeout_seconds=timeout_seconds,
+                fixture_path=fixture_path,
+                run_metadata=run_metadata,
+            )
+        return self._runner.run_codex_mcp_aware_version_trap(
+            condition_id=condition.condition_id,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+            run_metadata=run_metadata,
+        )
+
     def _policy_candidates_from_matrix(self, matrix_report: dict) -> list[dict]:
+        if matrix_report["matrix_kind"] != "version_trap":
+            return []
         baseline_runs = [
             item["run"]
             for item in matrix_report["runs"]
@@ -216,6 +352,33 @@ def _version_trap_conditions(*, include_mcp: bool) -> list[MatrixCondition]:
                 id="mcp_brief",
                 condition_id="condition.001-drizzle-brief-assisted",
                 prompt=CODEX_MCP_AWARE_VERSION_TRAP_PROMPT,
+                mcp_enabled=True,
+            )
+        )
+    return conditions
+
+
+def _api_drift_conditions(*, include_mcp: bool) -> list[MatrixCondition]:
+    conditions = [
+        MatrixCondition(
+            id="baseline",
+            condition_id="condition.002-api-drift-baseline",
+            prompt=CODEX_API_DRIFT_BASELINE_PROMPT,
+            mcp_enabled=False,
+        ),
+        MatrixCondition(
+            id="static_brief",
+            condition_id="condition.002-api-drift-brief-assisted",
+            prompt=CODEX_API_DRIFT_PROMPT,
+            mcp_enabled=False,
+        ),
+    ]
+    if include_mcp:
+        conditions.append(
+            MatrixCondition(
+                id="mcp_brief",
+                condition_id="condition.002-api-drift-brief-assisted",
+                prompt=CODEX_MCP_AWARE_API_DRIFT_PROMPT,
                 mcp_enabled=True,
             )
         )
@@ -314,7 +477,7 @@ def _write_matrix_result(matrix_report: dict, *, result_dir: Path) -> Path:
 
 def _matrix_markdown(matrix_report: dict) -> str:
     lines = [
-        "# Codex Version-Trap Matrix",
+        f"# Codex {_matrix_title(matrix_report['matrix_kind'])} Matrix",
         "",
         f"Date: {datetime.now(UTC).date().isoformat()}",
         "",
@@ -393,6 +556,16 @@ def _mean(metrics: dict, key: str) -> str:
     if not isinstance(value, dict) or "mean" not in value:
         return "n/a"
     return f"{value['mean']:.2f}"
+
+
+def _matrix_title(matrix_kind: str) -> str:
+    return matrix_kind.replace("_", " ").title()
+
+
+def _matrix_experiment_id(matrix_kind: str) -> str:
+    if matrix_kind == "api_drift":
+        return API_DRIFT_EXPERIMENT_ID
+    return DRIZZLE_EXPERIMENT_ID
 
 
 def _comparison_payload(

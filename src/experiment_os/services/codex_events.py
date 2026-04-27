@@ -177,7 +177,10 @@ def _version_events(run_id: str, command: str, output: str) -> list[RunEventInpu
 
 def _inspection_event(run_id: str, command: str) -> RunEventInput | None:
     match = re.search(
-        r"(?:cat|find|ls|rg|grep|sed).*?([\w./-]*(?:migration|schema|drizzle\.config)[\w./-]*)",
+        (
+            r"(?:cat|find|ls|rg|grep|sed).*?([\w./-]*(?:migration|schema|"
+            r"drizzle\.config|vendor_sdk|agent_client/client|tests/test_client|pyproject)[\w./-]*)"
+        ),
         command,
     )
     if not match:

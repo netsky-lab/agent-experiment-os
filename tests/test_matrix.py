@@ -104,3 +104,37 @@ def test_version_trap_matrix_can_run_multiple_models(session, tmp_path, monkeypa
     assert report["models"] == ["model-a", "model-b"]
     assert len(report["runs"]) == 4
     assert set(report["summary_by_model"]) == {"model-a", "model-b"}
+
+
+def test_api_drift_matrix_runs_python_fixture_conditions(session, tmp_path, monkeypatch):
+    fake_codex = tmp_path / "codex"
+    fake_codex.write_text(
+        "#!/usr/bin/env bash\n"
+        "cat >/dev/null\n"
+        "if [[ \"$*\" == *mcp_servers.experiment_os.command* ]]; then\n"
+        "  echo '{\"type\":\"item.completed\",\"item\":{\"type\":\"mcp_tool_call\","
+        "\"server\":\"experiment_os\",\"tool\":\"start_pre_work_protocol\","
+        "\"arguments\":{},\"status\":\"completed\"}}'\n"
+        "fi\n"
+        "echo '{\"type\":\"exec_command.end\",\"cmd\":\"sed -n 1,80p agent_client/vendor_sdk.py\","
+        "\"output\":\"def responses_create\",\"exit_code\":0}'\n"
+        "echo '{\"type\":\"file_change\",\"changes\":[{\"path\":\"agent_client/client.py\","
+        "\"kind\":\"modify\"}]}'\n"
+        "echo '{\"type\":\"exec_command.end\",\"cmd\":\"python -m pytest\","
+        "\"output\":\"passed\",\"exit_code\":0}'\n",
+        encoding="utf-8",
+    )
+    fake_codex.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+
+    report = ExperimentMatrixRunner(session).run_api_drift_matrix(
+        repeat_count=1,
+        sandbox="danger-full-access",
+        include_mcp=True,
+    )
+
+    assert report["matrix_kind"] == "api_drift"
+    assert report["experiment_id"] == "experiment.002-python-api-drift"
+    assert len(report["runs"]) == 3
+    assert report["summary"]["baseline"]["metrics"]["tests_passing"]["rate"] == 1
+    assert report["summary"]["baseline"]["metrics"]["wrong_file_edits"]["mean"] == 0

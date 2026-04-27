@@ -1,5 +1,6 @@
 from experiment_os.domain.schemas import BriefRequest
 from experiment_os.services.briefs import BriefCompiler
+from experiment_os.services.protocol import AgentWorkProtocol
 
 
 def test_brief_compiler_returns_required_pages_and_ranking(session):
@@ -37,3 +38,23 @@ def test_brief_compiler_prunes_by_token_budget(session):
 
     assert brief["content"]["candidate_pages"]
     assert brief["content"]["truncated"] is True
+
+
+def test_brief_compiler_returns_api_drift_knowledge_and_agent_context(session):
+    request = BriefRequest(
+        task="Fix Python SDK API drift wrapper failure",
+        libraries=["example-llm-sdk", "python"],
+        agent="codex",
+        toolchain="shell",
+    )
+
+    protocol = AgentWorkProtocol(session).start(request=request)
+
+    brief = protocol["brief"]
+    context = protocol["agent_work_context"]
+
+    assert "knowledge.python-api-drift-local-shim" in brief["required_pages"]
+    assert "knowledge.python-api-drift-local-shim" in context["required_load_order"]
+    assert any("vendor_sdk.py" in item for item in context["required_checks"])
+    assert any("Do not edit tests" in item for item in context["forbidden_actions"])
+    assert "claim.issue.example-llm-sdk.upgrade-advice" in context["knowledge_boundaries"]["evidence_only"]

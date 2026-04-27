@@ -423,6 +423,43 @@ def experiments_run_codex_version_trap_hard_matrix(
     typer.echo(json.dumps(result, indent=2))
 
 
+@experiments_app.command("run-codex-api-drift-matrix")
+def experiments_run_codex_api_drift_matrix(
+    repeat_count: int = typer.Option(1, min=1, help="Number of repeats per condition."),
+    models: list[str] | None = typer.Option(
+        None,
+        "--model",
+        help="Optional Codex model override. Repeat to run a model matrix.",
+    ),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
+    include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    write_result_artifact: bool = typer.Option(
+        True,
+        help="Write a markdown result artifact under the experiment results directory.",
+    ),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/python-api-drift-repo"),
+        help="API-drift fixture repo copied into disposable workdirs before running Codex.",
+    ),
+) -> None:
+    """Run the Python API-drift matrix with baseline/static/MCP conditions."""
+    with session_scope() as session:
+        result = ExperimentMatrixRunner(session).run_api_drift_matrix(
+            repeat_count=repeat_count,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+            include_mcp=include_mcp,
+            write_result_artifact=write_result_artifact,
+            progress=lambda event: typer.echo(json.dumps(event), err=True),
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @demo_app.command("smoke")
 def demo_smoke() -> None:
     """Run the v0 work-brief loop without an MCP client."""
