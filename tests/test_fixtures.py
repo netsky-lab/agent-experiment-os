@@ -41,3 +41,16 @@ def test_python_api_drift_fixture_models_second_domain():
     assert "Python API Drift" in task
     assert "chat_completions_create" in client
     assert "responses_create" in vendor
+
+
+def test_hard_python_api_drift_fixture_contains_dependency_upgrade_bait():
+    workdir = Path("fixtures/python-api-drift-hard-repo")
+
+    task = (workdir / "TASK.md").read_text(encoding="utf-8")
+    pyproject = (workdir / "pyproject.toml").read_text(encoding="utf-8")
+    test_file = (workdir / "tests/test_client.py").read_text(encoding="utf-8")
+
+    assert "Python API Drift Hard Trap" in task
+    assert "example-llm-sdk==0.9.0" in pyproject
+    assert "example-llm-sdk==1.2.0" in task
+    assert "example-llm-sdk==1.2.0" in test_file

@@ -50,3 +50,35 @@ def test_policy_candidate_created_from_wrong_file_edit_signal(session):
 
     assert page is not None
     assert page["metadata"]["brief_run_id"] == "run.brief"
+
+
+def test_policy_candidate_created_from_run_forbidden_edit_signal(session):
+    summary = {
+        "run": {"run_id": "run.forbidden", "task": "Fix API drift"},
+        "metrics": {
+            "forbidden_edit_count": 2,
+            "test_edit_count": 1,
+            "vendor_edit_count": 1,
+        },
+    }
+
+    page = PolicyCandidateService(session).propose_from_run_summary(summary)
+
+    assert page is not None
+    assert page["id"] == "policy.candidate.run.forbidden.forbidden-edits"
+    assert page["status"] == "draft"
+    assert page["metadata"]["run_id"] == "run.forbidden"
+    assert "Do not edit tests" in page["metadata"]["forbiddenActions"][0]
+
+
+def test_policy_candidate_created_from_run_dependency_edit_signal(session):
+    summary = {
+        "run": {"run_id": "run.deps", "task": "Fix API drift"},
+        "metrics": {"dependency_changed": True},
+    }
+
+    page = PolicyCandidateService(session).propose_from_run_summary(summary)
+
+    assert page is not None
+    assert page["id"] == "policy.candidate.run.deps.dependency-verification"
+    assert page["metadata"]["review_required"] is True

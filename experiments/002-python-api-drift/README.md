@@ -7,6 +7,7 @@ Purpose: test whether Experiment OS generalizes beyond Drizzle/version traps.
 Fixture:
 
 - `fixtures/python-api-drift-repo`
+- `fixtures/python-api-drift-hard-repo`
 
 Hypothesis:
 
@@ -19,6 +20,8 @@ Current oracle:
 - correct edit target: `agent_client/client.py`;
 - forbidden edits: `agent_client/vendor_sdk.py`, `tests/`, dependency metadata;
 - command: `python -m pytest`.
+- hard fixture adds explicit `example-llm-sdk==0.9.0` dependency-upgrade bait that must remain
+  unchanged.
 
 Experiment OS knowledge:
 
@@ -31,6 +34,16 @@ Matrix command:
 
 ```bash
 docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access \
+  --approval-policy never
+```
+
+Hard fixture variant:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-matrix \
+  --fixture-path fixtures/python-api-drift-hard-repo \
   --repeat-count 3 \
   --sandbox danger-full-access \
   --approval-policy never

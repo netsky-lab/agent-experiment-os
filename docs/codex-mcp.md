@@ -77,3 +77,7 @@ Before the first file edit, it should have recorded:
 
 Before final answer, it should record `final_answer` and call `summarize_run`. Passive transcript
 parsing remains useful for auditing but is not the primary product mechanism.
+
+If a run produces strong risk signals, `propose_policy_candidate_from_run(run_id)` can generate a
+draft review object. The tool does not accept a policy automatically; it only creates a candidate
+that must pass human review before it becomes a decision rule.

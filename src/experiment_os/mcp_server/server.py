@@ -11,6 +11,7 @@ from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.event_contract import AgentEventContract, event_contract_prompt
+from experiment_os.services.policy_candidates import PolicyCandidateService
 from experiment_os.services.protocol import AgentWorkProtocol
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.serialization import brief_to_dict, page_to_dict
@@ -197,6 +198,14 @@ def create_mcp_server() -> FastMCP:
         """Return a compact run summary with recorded events."""
         with session_scope() as session:
             return RunRecorder(session).summarize_run(run_id)
+
+    @mcp.tool()
+    def propose_policy_candidate_from_run(run_id: str) -> dict[str, Any]:
+        """Generate a draft policy candidate from a run summary when metrics justify review."""
+        with session_scope() as session:
+            summary = RunRecorder(session).summarize_run(run_id)
+            candidate = PolicyCandidateService(session).propose_from_run_summary(summary)
+            return {"run_id": run_id, "candidate": candidate}
 
     @mcp.resource("wiki://pages/{page_id}")
     def wiki_page(page_id: str) -> str:

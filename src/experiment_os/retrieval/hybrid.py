@@ -96,7 +96,7 @@ class HybridRetriever:
             {
                 "query": query,
                 "embedding": embedding,
-                "limit": limit * 4 if libraries or page_types else limit,
+                "limit": max(limit * 12, 64) if libraries or page_types else limit,
                 "status": status,
             },
         ).mappings()
