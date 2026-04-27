@@ -60,6 +60,105 @@ def test_metrics_detect_version_trap_dependency_edit(session):
     assert summary["metrics"]["preserved_local_version_constraint"] is False
 
 
+def test_metrics_treat_red_green_test_sequence_as_passing_with_failure_count(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(RunStartInput(task="red green metrics test"))
+
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="test_run",
+            payload={"command": "npm test", "status": "failed"},
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="test_run",
+            payload={"command": "npm test", "status": "passed"},
+        )
+    )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["tests_passing"] is True
+    assert summary["metrics"]["test_failure_count"] == 1
+
+
+def test_metrics_treat_final_failed_test_sequence_as_not_passing(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(RunStartInput(task="green red metrics test"))
+
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="test_run",
+            payload={"command": "npm test", "passed": True},
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="test_run",
+            payload={"command": "npm test", "passed": False},
+        )
+    )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["tests_passing"] is False
+    assert summary["metrics"]["test_failure_count"] == 1
+
+
+def test_metrics_normalize_agent_payload_variants(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(RunStartInput(task="payload variants metrics test"))
+
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="package_version_checked",
+            payload={
+                "package_json": {
+                    "drizzle-kit": "0.31.1",
+                    "drizzle-orm": "1.0.0-beta.22",
+                }
+            },
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="file_inspected",
+            payload={
+                "files": ["src/db/schema.ts", "drizzle/migrations/0001_initial.sql"],
+                "purpose": "inspect migration convention before editing",
+            },
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="file_edited",
+            payload={"files": ["src/db/schema.ts"]},
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="test_run",
+            payload={"command": "npm test", "exit_code": 0},
+        )
+    )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["inspected_migration_conventions_before_edit"] is True
+    assert summary["metrics"]["preserved_local_version_constraint"] is True
+    assert summary["metrics"]["wrong_file_edits"] == 0
+    assert summary["metrics"]["tests_passing"] is True
+
+
 def test_metrics_count_harness_script_edits_as_wrong_file_edits(session):
     recorder = RunRecorder(session)
     run = recorder.start_run(RunStartInput(task="wrong edit metrics test"))

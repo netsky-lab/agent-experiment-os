@@ -292,6 +292,7 @@ def _emit_progress(progress: Callable[[dict], None] | None, event: dict) -> None
 def _progress_metrics(metrics: dict) -> dict:
     keys = [
         "tests_passing",
+        "test_failure_count",
         "dependency_changed",
         "rewrote_migration_history",
         "wrong_file_edits",
@@ -356,6 +357,7 @@ def _matrix_markdown(matrix_report: dict) -> str:
                 "",
                 f"- run count: `{summary['run_count']}`",
                 f"- tests passing rate: `{_rate(metrics, 'tests_passing')}`",
+                f"- test failure mean: `{_mean(metrics, 'test_failure_count')}`",
                 f"- dependency change rate: `{_rate(metrics, 'dependency_changed')}`",
                 f"- file edit mean: `{_mean(metrics, 'file_edit_count')}`",
                 f"- wrong-file edit mean: `{_mean(metrics, 'wrong_file_edits')}`",

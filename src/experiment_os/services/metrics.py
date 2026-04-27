@@ -17,6 +17,11 @@ class MetricsExtractor:
             and _looks_like_migration_inspection(event.payload)
         ]
         test_runs = [event for event in events if event.event_type == "test_run"]
+        test_outcomes = [
+            outcome
+            for event in test_runs
+            if (outcome := _test_outcome(event.payload)) is not None
+        ]
         failures = [event for event in events if event.event_type == "failure_observed"]
         interventions = [event for event in events if event.event_type == "intervention_applied"]
         edits = [event for event in events if event.event_type == "file_edited"]
@@ -39,8 +44,8 @@ class MetricsExtractor:
                 migration_inspection_indices, first_edit_index
             ),
             "tests_run": len(test_runs),
-            "tests_passing": any(event.payload.get("passed") is True for event in test_runs)
-            and not any(event.payload.get("passed") is False for event in test_runs),
+            "tests_passing": bool(test_outcomes) and test_outcomes[-1] is True,
+            "test_failure_count": sum(1 for outcome in test_outcomes if outcome is False),
             "failure_count": len(failures),
             "intervention_count": len(interventions),
             "file_edit_count": len(edits),
@@ -97,16 +102,22 @@ def _before_first_edit(indices: list[int], first_edit_index: int | None) -> bool
 
 
 def _looks_like_migration_inspection(payload: dict) -> bool:
-    path = str(payload.get("path", "")).lower()
-    reason = str(payload.get("reason", "")).lower()
-    return "migration" in path or "migration" in reason
+    text = " ".join(
+        [
+            *_payload_paths(payload),
+            str(payload.get("reason", "")),
+            str(payload.get("purpose", "")),
+            str(payload.get("finding", "")),
+        ]
+    ).lower()
+    return "migration" in text
 
 
 def _wrong_file_edits(edits: list[RunEvent]) -> int:
     count = 0
     for event in edits:
-        path = str(event.payload.get("path", "")).lower()
-        if path and not _looks_like_allowed_drizzle_task_edit(path):
+        paths = _payload_paths(event.payload)
+        if paths and not any(_looks_like_allowed_drizzle_task_edit(path.lower()) for path in paths):
             count += 1
     return count
 
@@ -122,17 +133,19 @@ def _looks_like_allowed_drizzle_task_edit(path: str) -> bool:
 
 
 def _looks_like_dependency_edit(payload: dict) -> bool:
-    path = str(payload.get("path", "")).lower()
-    return (
+    return any(
         path.endswith("package.json")
         or path.endswith("package-lock.json")
         or "pnpm-lock" in path
+        for path in (item.lower() for item in _payload_paths(payload))
     )
 
 
 def _looks_like_migration_edit(payload: dict) -> bool:
-    path = str(payload.get("path", "")).lower()
-    return "drizzle/migrations" in path or "/migrations/" in path
+    return any(
+        "drizzle/migrations" in path or "/migrations/" in path
+        for path in (item.lower() for item in _payload_paths(payload))
+    )
 
 
 def _checked_version(events: list[RunEvent], package: str) -> str | None:
@@ -144,6 +157,12 @@ def _checked_version(events: list[RunEvent], package: str) -> str | None:
             version = event.payload.get("version")
             if version is not None:
                 return str(version)
+        for key in ("package_json", "dependencies"):
+            versions = event.payload.get(key)
+            if isinstance(versions, dict):
+                version = versions.get(package)
+                if version is not None:
+                    return str(version)
     return None
 
 
@@ -192,3 +211,37 @@ def _event_before_any(
 
 def _count_failure_type(failures: list[RunEvent], failure_type: str) -> int:
     return sum(1 for event in failures if event.payload.get("failure_type") == failure_type)
+
+
+def _test_outcome(payload: dict) -> bool | None:
+    passed = payload.get("passed")
+    if isinstance(passed, bool):
+        return passed
+
+    exit_code = payload.get("exit_code")
+    if isinstance(exit_code, int):
+        return exit_code == 0
+
+    status = str(
+        payload.get("status") or payload.get("outcome") or payload.get("result") or ""
+    ).lower()
+    if status in {"passed", "pass", "success", "succeeded", "ok"}:
+        return True
+    if status in {"failed", "fail", "failure", "error"}:
+        return False
+    return None
+
+
+def _payload_paths(payload: dict) -> list[str]:
+    values: list[str] = []
+    for key in ("path", "file"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            values.append(value)
+
+    files = payload.get("files")
+    if isinstance(files, list):
+        values.extend(item for item in files if isinstance(item, str) and item)
+    elif isinstance(files, str) and files:
+        values.append(files)
+    return values
