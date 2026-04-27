@@ -1,3 +1,3 @@
-from experiment_os.prompts.codex import CODEX_EXPERIMENT_PROMPT
+from experiment_os.prompts.codex import CODEX_BASELINE_TOY_PROMPT, CODEX_EXPERIMENT_PROMPT
 
-__all__ = ["CODEX_EXPERIMENT_PROMPT"]
+__all__ = ["CODEX_BASELINE_TOY_PROMPT", "CODEX_EXPERIMENT_PROMPT"]

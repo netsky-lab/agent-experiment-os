@@ -22,6 +22,16 @@ class ReviewService:
             for page in self._wiki.list_pages_filtered(status=status, page_type=page_type)
         ]
 
+    def review_queue(self, *, limit: int = 50) -> list[dict]:
+        pages = self._wiki.list_pages_filtered(status="draft")
+        queued = [
+            page
+            for page in pages
+            if page.type in {"claim", "knowledge_card"}
+            and page.page_metadata.get("review_required", True)
+        ]
+        return [page_to_dict(page) for page in queued[:limit]]
+
     def set_status(self, page_id: str, status: str) -> dict:
         page = self._wiki.set_status(page_id, status)
         self._retriever.reindex_all()

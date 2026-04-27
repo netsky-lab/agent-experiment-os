@@ -22,6 +22,7 @@ class DependencyResolver:
         visited: set[str] = set()
         queue: deque[tuple[str, int]] = deque((page_id, 0) for page_id in page_ids)
         pages: list[dict[str, Any]] = []
+        edges: list[dict[str, Any]] = []
         truncated = False
         estimated_tokens = 0
 
@@ -36,10 +37,17 @@ class DependencyResolver:
                 pages.append({"id": page_id, "missing": True, "dependsOn": []})
                 continue
 
-            depends_on = [
-                edge.target_page_id
-                for edge in self._wiki.list_edges_from(page.id, edge_type="dependsOn")
-            ]
+            outgoing_edges = self._wiki.list_edges_from(page.id, edge_type="dependsOn")
+            depends_on = [edge.target_page_id for edge in outgoing_edges]
+            edges.extend(
+                {
+                    "source": page.id,
+                    "target": edge.target_page_id,
+                    "type": edge.edge_type,
+                    "metadata": edge.edge_metadata,
+                }
+                for edge in outgoing_edges
+            )
             serialized = page_to_dict(page, include_body=False)
             serialized["dependsOn"] = depends_on
             pages.append(serialized)
@@ -54,5 +62,4 @@ class DependencyResolver:
                     if target_page_id not in visited:
                         queue.append((target_page_id, current_depth + 1))
 
-        return DependencyGraph(root_pages=page_ids, pages=pages, truncated=truncated)
-
+        return DependencyGraph(root_pages=page_ids, pages=pages, edges=edges, truncated=truncated)

@@ -7,11 +7,14 @@ from experiment_os.domain.schemas import BriefRequest
 from experiment_os.repositories.briefs import BriefRepository
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.retrieval.hybrid import HybridRetriever
+from experiment_os.services.agent_graph import AgentDependencyGraphPresenter
+from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.serialization import brief_to_dict, page_to_dict
 
 
 class BriefCompiler:
     def __init__(self, session: Session) -> None:
+        self._session = session
         self._briefs = BriefRepository(session)
         self._wiki = WikiRepository(session)
         self._retriever = HybridRetriever(session)
@@ -36,6 +39,16 @@ class BriefCompiler:
             for page in selected_pages
             if page.type in {"source", "claim", "run_report"} and page.id not in required_pages
         ]
+        dependency_graph = DependencyResolver(self._session).resolve(
+            required_pages,
+            depth=2,
+            token_budget=request.token_budget,
+        )
+        agent_graph = AgentDependencyGraphPresenter().present(
+            required_pages=required_pages,
+            recommended_pages=recommended_pages,
+            dependency_graph=dependency_graph.model_dump(),
+        )
 
         content = {
             "known_risks": [
@@ -52,6 +65,7 @@ class BriefCompiler:
             ],
             "candidate_pages": [page_to_dict(page, include_body=False) for page in selected_pages],
             "evidence_pages": evidence_pages,
+            "agent_dependency_graph": agent_graph,
             "ranking": [
                 {
                     "page_id": page.id,

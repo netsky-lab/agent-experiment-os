@@ -46,6 +46,7 @@ class BriefRequest(BaseModel):
 class DependencyGraph(BaseModel):
     root_pages: list[str]
     pages: list[dict[str, Any]]
+    edges: list[dict[str, Any]] = Field(default_factory=list)
     truncated: bool = False
 
 

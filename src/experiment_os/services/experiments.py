@@ -21,7 +21,7 @@ from experiment_os.domain.schemas import (
     RunArtifactInput,
     RunStartInput,
 )
-from experiment_os.prompts import CODEX_EXPERIMENT_PROMPT
+from experiment_os.prompts import CODEX_BASELINE_TOY_PROMPT, CODEX_EXPERIMENT_PROMPT
 from experiment_os.repositories.experiments import ExperimentRepository
 from experiment_os.repositories.runs import RunRepository
 from experiment_os.services.briefs import BriefCompiler
@@ -161,6 +161,35 @@ class ExperimentRunner:
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
         )
+
+    def run_codex_toy_comparison(
+        self,
+        *,
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/drizzle-toy-repo"),
+    ) -> dict:
+        baseline = self.run_codex_toy_fixture(
+            condition_id="condition.001-drizzle-baseline",
+            prompt=CODEX_BASELINE_TOY_PROMPT,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+        brief_assisted = self.run_codex_toy_fixture(
+            condition_id="condition.001-drizzle-brief-assisted",
+            prompt=CODEX_EXPERIMENT_PROMPT,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+        return _comparison_report(baseline, brief_assisted)
 
     def _run_agent_condition(
         self,
@@ -481,6 +510,52 @@ def _interpret(condition_name: str, metrics: dict) -> str:
     if metrics["stale_api_usage_count"]:
         return "Baseline fixture reproduced stale-library behavior before version inspection."
     return "Baseline fixture did not reproduce the expected failure signal."
+
+
+def _comparison_report(baseline: dict, brief_assisted: dict) -> dict:
+    baseline_metrics = baseline["metrics"]
+    brief_metrics = brief_assisted["metrics"]
+    deltas = {
+        key: _metric_delta(baseline_metrics.get(key), brief_metrics.get(key))
+        for key in sorted(set(baseline_metrics) | set(brief_metrics))
+    }
+    return {
+        "experiment_id": DRIZZLE_EXPERIMENT_ID,
+        "comparison": "codex_toy_baseline_vs_brief_assisted",
+        "conditions": {
+            "baseline": baseline,
+            "brief_assisted": brief_assisted,
+        },
+        "metric_deltas": deltas,
+        "interpretation": _comparison_interpretation(baseline_metrics, brief_metrics),
+    }
+
+
+def _metric_delta(baseline: object, candidate: object) -> object:
+    if isinstance(baseline, bool) or isinstance(candidate, bool):
+        return {"baseline": baseline, "brief_assisted": candidate}
+    if isinstance(baseline, (int, float)) and isinstance(candidate, (int, float)):
+        return candidate - baseline
+    return {"baseline": baseline, "brief_assisted": candidate}
+
+
+def _comparison_interpretation(baseline: dict, brief_assisted: dict) -> str:
+    improvements: list[str] = []
+    if (
+        not baseline.get("inspected_package_versions_before_edit")
+        and brief_assisted.get("inspected_package_versions_before_edit")
+    ):
+        improvements.append("brief-assisted checked package versions before editing")
+    if (
+        not baseline.get("inspected_migration_conventions_before_edit")
+        and brief_assisted.get("inspected_migration_conventions_before_edit")
+    ):
+        improvements.append("brief-assisted checked migration conventions before editing")
+    if baseline.get("wrong_file_edits", 0) > brief_assisted.get("wrong_file_edits", 0):
+        improvements.append("brief-assisted reduced wrong-file edits")
+    if not improvements:
+        return "No strong behavioral improvement signal was observed in this comparison."
+    return "; ".join(improvements) + "."
 
 
 def _brief_prompt(brief: dict, dependencies: dict) -> str:

@@ -25,6 +25,7 @@ The main agent-facing artifact is a **work brief**: a compact, source-backed pac
 
 - [Architecture](./docs/architecture.md)
 - [Codex MCP contract](./docs/codex-mcp.md)
+- [Backend API contract](./docs/backend-api-contract.md)
 - [Knowledge wiki model](./docs/knowledge-wiki.md)
 - [MCP dependency flow](./docs/mcp-dependency-flow.md)
 - [Roadmap](./docs/roadmap.md)

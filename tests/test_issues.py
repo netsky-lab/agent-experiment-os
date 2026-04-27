@@ -11,6 +11,8 @@ def test_issue_claim_extraction_includes_versions():
 
 ### What version of `drizzle-kit` are you using?
 1.0.0-beta.22
+
+Generate migrations after changing a default value.
 """,
     }
 
@@ -21,4 +23,8 @@ def test_issue_claim_extraction_includes_versions():
         "drizzle-orm": "1.0.0-beta.22",
         "drizzle-kit": "1.0.0-beta.22",
     }
-
+    reproduction_claim = next(
+        claim for claim in claims if claim.metadata["claim_type"] == "reproduction_signal"
+    )
+    assert reproduction_claim.metadata["review"]["allowed_use"] == "evidence_only"
+    assert reproduction_claim.metadata["source_page_id"] == "source.github-issue.test"

@@ -58,6 +58,9 @@ class ExperimentRepository:
     def get_experiment(self, experiment_id: str) -> Experiment | None:
         return self._session.get(Experiment, experiment_id)
 
+    def list_experiments(self) -> list[Experiment]:
+        return self._session.scalars(select(Experiment).order_by(Experiment.created_at.desc())).all()
+
     def get_condition(self, condition_id: str) -> ExperimentCondition | None:
         return self._session.get(ExperimentCondition, condition_id)
 

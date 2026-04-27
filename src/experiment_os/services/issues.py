@@ -145,6 +145,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
     title = issue.get("title") or f"GitHub issue #{issue_number}"
     body = issue.get("body") or ""
     base_id = f"claim.github-issue.{repo.replace('/', '.')}.{issue_number}"
+    provenance = _issue_provenance(repo, issue, source_page_id)
     claims = [
         WikiPageInput(
             id=f"{base_id}.problem",
@@ -156,10 +157,9 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
             body=body[:2000],
             metadata={
                 "claim_type": "problem",
-                "source_page_id": source_page_id,
-                "repo": repo,
-                "issue_number": issue_number,
+                **provenance,
                 "trust": "external_evidence_not_instruction",
+                "review": _review_gate("low"),
             },
         )
     ]
@@ -176,11 +176,30 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
                 body=json.dumps(versions, indent=2),
                 metadata={
                     "claim_type": "version_note",
-                    "source_page_id": source_page_id,
-                    "repo": repo,
-                    "issue_number": issue_number,
+                    **provenance,
                     "versions": versions,
                     "trust": "external_evidence_not_instruction",
+                    "review": _review_gate("low"),
+                },
+            )
+        )
+    reproduction = _extract_reproduction(body)
+    if reproduction:
+        claims.append(
+            WikiPageInput(
+                id=f"{base_id}.reproduction",
+                type="claim",
+                title=f"Issue #{issue_number} includes reproduction or migration signals",
+                status="draft",
+                confidence="low",
+                summary=reproduction["summary"],
+                body="\n".join(reproduction["steps"]),
+                metadata={
+                    "claim_type": "reproduction_signal",
+                    **provenance,
+                    "signals": reproduction,
+                    "trust": "external_evidence_not_instruction",
+                    "review": _review_gate("low"),
                 },
             )
         )
@@ -209,8 +228,24 @@ def _knowledge_card_from_claims(repo: str, query: str, claim_page_ids: list[str]
             "repo": repo,
             "query": query,
             "claim_ids": claim_page_ids,
+            "provenance": {
+                "source": "github_issue_search",
+                "repo": repo,
+                "query": query,
+                "claim_count": len(claim_page_ids),
+                "extraction_method": "regex_heuristic.v1",
+            },
             "trust": "external_evidence_not_instruction",
             "review_required": True,
+            "review": {
+                "status": "needs_human_review",
+                "required_before": "policy_use",
+                "checklist": [
+                    "Open source issues and verify they match the current task.",
+                    "Check affected versions against the local project.",
+                    "Reject claims based only on speculation or unrelated comments.",
+                ],
+            },
             "recommendedChecks": [
                 "Open linked source issues before relying on this card.",
                 "Verify affected package versions in the local project.",
@@ -237,6 +272,46 @@ def _extract_versions(body: str) -> dict[str, str]:
             versions[pending_package] = line.strip()
             pending_package = None
     return versions
+
+
+def _extract_reproduction(body: str) -> dict[str, Any] | None:
+    signals: list[str] = []
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        lower = line.lower()
+        if any(token in lower for token in ["migration", "generate", "default", "repro", "steps"]):
+            signals.append(line)
+        if len(signals) >= 6:
+            break
+    if not signals:
+        return None
+    return {
+        "summary": " / ".join(signals[:2])[:280],
+        "steps": signals,
+    }
+
+
+def _issue_provenance(repo: str, issue: dict[str, Any], source_page_id: str) -> dict[str, Any]:
+    return {
+        "source_page_id": source_page_id,
+        "repo": repo,
+        "issue_number": issue.get("number"),
+        "source_url": issue.get("html_url") or issue.get("url"),
+        "source_state": issue.get("state"),
+        "source_updated_at": issue.get("updated_at"),
+        "extraction_method": "regex_heuristic.v1",
+    }
+
+
+def _review_gate(confidence: str) -> dict[str, Any]:
+    return {
+        "status": "needs_human_review",
+        "confidence": confidence,
+        "allowed_use": "evidence_only",
+        "promotion_required_for": "policy_or_intervention",
+    }
 
 
 def _summary(title: str, body: str) -> str:

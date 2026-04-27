@@ -18,9 +18,9 @@ async def run_mcp_smoke() -> dict[str, Any]:
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
 
-            brief = await _call_json(
+            protocol = await _call_json(
                 session,
-                "get_work_brief",
+                "start_pre_work_protocol",
                 {
                     "task": "Fix a Drizzle migration issue in a Python CLI repo",
                     "repo": "example/repo",
@@ -30,22 +30,14 @@ async def run_mcp_smoke() -> dict[str, Any]:
                     "toolchain": "shell",
                 },
             )
+            brief = protocol["brief"]
+            dependencies = protocol["dependencies"]
+            run = protocol["run"]
+            agent_graph = protocol["agent_dependency_graph"]
             dependencies = await _call_json(
                 session,
                 "resolve_dependencies",
                 {"page_ids": brief["required_pages"], "depth": 2},
-            )
-            run = await _call_json(
-                session,
-                "record_run_start",
-                {
-                    "task": "Fix a Drizzle migration issue in a Python CLI repo",
-                    "repo": "example/repo",
-                    "agent": "opencode",
-                    "model": "gemma",
-                    "toolchain": "shell",
-                    "metadata": {"brief_id": brief["brief_id"], "smoke": "mcp"},
-                },
             )
             event = await _call_json(
                 session,
@@ -72,6 +64,7 @@ async def run_mcp_smoke() -> dict[str, Any]:
     return {
         "brief_id": brief["brief_id"],
         "required_pages": brief["required_pages"],
+        "agent_graph_load_order": agent_graph["load_order"],
         "dependency_pages": [page["id"] for page in dependencies["pages"]],
         "run_id": run["run_id"],
         "event_id": event["event_id"],
