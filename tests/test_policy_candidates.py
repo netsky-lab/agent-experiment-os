@@ -82,3 +82,31 @@ def test_policy_candidate_created_from_run_dependency_edit_signal(session):
     assert page is not None
     assert page["id"] == "policy.candidate.run.deps.dependency-verification"
     assert page["metadata"]["review_required"] is True
+
+
+def test_policy_candidate_created_from_mcp_protocol_gap(session):
+    matrix_report = {
+        "matrix_id": "matrix.api-drift.test",
+        "experiment_id": "experiment.002-python-api-drift",
+        "matrix_kind": "api_drift",
+        "summary": {
+            "mcp_brief": {
+                "metrics": {
+                    "mcp_pre_work_protocol_called": {
+                        "true_count": 0,
+                        "false_count": 3,
+                        "rate": 0,
+                    },
+                    "mcp_tool_call_count": {"mean": 0.67, "min": 0, "max": 2},
+                }
+            }
+        },
+    }
+
+    page = PolicyCandidateService(session).propose_from_mcp_protocol_gap(matrix_report)
+
+    assert page is not None
+    assert page["id"] == "policy.candidate.matrix.matrix-api-drift-test.mcp-prework-gate"
+    assert page["status"] == "draft"
+    assert page["metadata"]["mcp_pre_work_rate"] == 0
+    assert "Block or mark" in page["metadata"]["recommendedControls"][1]

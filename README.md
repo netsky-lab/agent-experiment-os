@@ -35,6 +35,7 @@ Research prototype. The repo already contains:
 ## Design Docs
 
 - [Architecture](./docs/architecture.md)
+- [Agent adapter layer](./docs/agent-adapters.md)
 - [Agent work context](./docs/agent-work-context.md)
 - [Codex MCP contract](./docs/codex-mcp.md)
 - [Backend API contract](./docs/backend-api-contract.md)

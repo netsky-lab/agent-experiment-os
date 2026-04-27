@@ -298,18 +298,22 @@ class ExperimentMatrixRunner:
         )
 
     def _policy_candidates_from_matrix(self, matrix_report: dict) -> list[dict]:
+        service = PolicyCandidateService(self._session)
+        candidates: list[dict] = []
+        protocol_candidate = service.propose_from_mcp_protocol_gap(matrix_report)
+        if protocol_candidate is not None:
+            candidates.append(protocol_candidate)
+
         if matrix_report["matrix_kind"] != "version_trap":
-            return []
+            return candidates
         baseline_runs = [
             item["run"]
             for item in matrix_report["runs"]
             if item["matrix_condition"] == "baseline"
         ]
         if not baseline_runs:
-            return []
+            return candidates
 
-        service = PolicyCandidateService(self._session)
-        candidates: list[dict] = []
         for candidate_condition in ("static_brief", "mcp_brief"):
             candidate_runs = [
                 item["run"]

@@ -46,6 +46,7 @@ def test_http_api_exposes_dashboard_read_models(session):
     experiments = client.get("/experiments")
     graph = client.get(f"/briefs/{brief['brief_id']}/evidence-graph")
     matrix = client.get("/experiments/experiment.001-drizzle-brief/matrix")
+    latest_matrix = client.get("/experiments/experiment.001-drizzle-brief/matrix/latest")
     policies = client.get("/policy-candidates")
 
     assert experiments.status_code == 200
@@ -54,6 +55,8 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert graph.json()["graph"]["nodes"]
     assert matrix.status_code == 200
     assert matrix.json()["matrices"]
+    assert latest_matrix.status_code == 200
+    assert latest_matrix.json()["matrix"]["matrix_id"] == "matrix.http"
     assert policies.status_code == 200
     assert policies.json()["items"]
 

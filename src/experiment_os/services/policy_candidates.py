@@ -10,6 +10,7 @@ from experiment_os.services.serialization import page_to_dict
 
 VERSION_TRAP_POLICY_ID = "policy.candidate.issue-version-local-verification"
 RUN_POLICY_PREFIX = "policy.candidate.run"
+MATRIX_POLICY_PREFIX = "policy.candidate.matrix"
 
 
 class PolicyCandidateService:
@@ -78,6 +79,56 @@ class PolicyCandidateService:
         if metrics.get("dependency_changed") or metrics.get("blind_issue_version_alignment"):
             return self._propose_dependency_verification_policy(run_id, run, metrics)
         return None
+
+    def propose_from_mcp_protocol_gap(self, matrix_report: dict[str, Any]) -> dict[str, Any] | None:
+        mcp_summary = matrix_report.get("summary", {}).get("mcp_brief")
+        if not mcp_summary:
+            return None
+        metrics = mcp_summary.get("metrics", {})
+        pre_work_rate = _aggregate_rate(metrics, "mcp_pre_work_protocol_called")
+        if pre_work_rate is None or pre_work_rate >= 1:
+            return None
+
+        matrix_id = matrix_report["matrix_id"]
+        page = self._wiki.upsert_page(
+            WikiPageInput(
+                id=f"{MATRIX_POLICY_PREFIX}.{_page_id_fragment(matrix_id)}.mcp-prework-gate",
+                type="policy",
+                title="Gate MCP-enabled agent runs on verified pre-work protocol calls",
+                status="draft",
+                confidence="medium",
+                summary=(
+                    "MCP-enabled experiment conditions should verify that the agent called "
+                    "Experiment OS pre-work tools before the run is treated as protocol-compliant."
+                ),
+                body=(
+                    "Draft policy candidate generated from a matrix where an MCP-aware prompt did "
+                    "not reliably produce `start_pre_work_protocol` calls. Treat this as an "
+                    "engineering control candidate, not a model capability conclusion."
+                ),
+                metadata={
+                    "source": "matrix_report",
+                    "matrix_id": matrix_id,
+                    "experiment_id": matrix_report.get("experiment_id"),
+                    "matrix_kind": matrix_report.get("matrix_kind"),
+                    "mcp_pre_work_rate": pre_work_rate,
+                    "mcp_tool_call_mean": _aggregate_mean(metrics, "mcp_tool_call_count"),
+                    "trust": "requires_human_review",
+                    "review_required": True,
+                    "review": {
+                        "status": "needs_human_review",
+                        "required_before": "agent_decision_rule_use",
+                    },
+                    "recommendedControls": [
+                        "Run Experiment OS pre-work through an adapter before handing off the task.",
+                        "Block or mark the run non-compliant if dependency graph loading is absent.",
+                        "Record final answer and verification through MCP after completion.",
+                    ],
+                },
+            )
+        )
+        HybridRetriever(self._session).reindex_all()
+        return page_to_dict(page)
 
     def _propose_forbidden_edit_policy(
         self,
@@ -175,3 +226,23 @@ def _has_version_trap_signal(baseline: dict, brief: dict) -> bool:
     if baseline.get("wrong_file_edits", 0) > brief.get("wrong_file_edits", 0):
         return True
     return False
+
+
+def _aggregate_rate(metrics: dict[str, Any], key: str) -> float | None:
+    value = metrics.get(key)
+    if not isinstance(value, dict):
+        return None
+    rate = value.get("rate")
+    return float(rate) if isinstance(rate, int | float) else None
+
+
+def _aggregate_mean(metrics: dict[str, Any], key: str) -> float | None:
+    value = metrics.get(key)
+    if not isinstance(value, dict):
+        return None
+    mean = value.get("mean")
+    return float(mean) if isinstance(mean, int | float) else None
+
+
+def _page_id_fragment(value: str) -> str:
+    return value.replace(".", "-").replace("_", "-")

@@ -35,10 +35,13 @@ def test_dashboard_exposes_matrix_projection(session, tmp_path):
 
     dashboard = DashboardReadService(session)
     matrix = dashboard.experiment_matrix("experiment.001-drizzle-brief")
+    latest = dashboard.latest_experiment_matrix("experiment.001-drizzle-brief")
     matrices = {item["matrix_id"]: item for item in matrix["matrices"]}
 
     assert "matrix.test" in matrices
     assert "static_brief" in matrices["matrix.test"]["conditions"]
+    assert latest["matrix"]["matrix_id"] == "matrix.test"
+    assert latest["matrix"]["run_count"] >= 1
 
 
 def test_dashboard_exposes_evidence_graph_and_review_actions(session):

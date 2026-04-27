@@ -105,6 +105,14 @@ class DashboardReadService:
             ],
         }
 
+    def latest_experiment_matrix(self, experiment_id: str) -> dict[str, Any]:
+        matrix = self.experiment_matrix(experiment_id)
+        matrices = matrix["matrices"]
+        if not matrices:
+            return {"experiment_id": experiment_id, "matrix": None}
+        latest = max(matrices, key=lambda item: item.get("latest_result_created_at") or "")
+        return {"experiment_id": experiment_id, "matrix": latest}
+
     def run_detail(self, run_id: str) -> dict[str, Any]:
         run = self._runs.get_run(run_id)
         if run is None:
@@ -188,6 +196,8 @@ def _matrix_projection(matrix_id: str, results: list) -> dict[str, Any]:
     return {
         "matrix_id": matrix_id,
         "matrix_kind": _first_metadata(results).get("matrix_kind"),
+        "run_count": len(results),
+        "latest_result_created_at": _latest_result_created_at(results),
         "conditions": {
             condition: {
                 "run_count": len(condition_results),
@@ -236,3 +246,10 @@ def _aggregate_metrics(metrics_list: list[dict]) -> dict:
                 "max": max(values) if values else None,
             }
     return aggregate
+
+
+def _latest_result_created_at(results: list) -> str | None:
+    timestamps = [result.created_at for result in results if result.created_at is not None]
+    if not timestamps:
+        return None
+    return max(timestamps).isoformat()
