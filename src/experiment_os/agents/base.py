@@ -1,5 +1,11 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
+
+
+class AgentAdapter(Protocol):
+    def run(self, request: "AgentRunRequest") -> "AgentExecutionResult":
+        pass
 
 
 @dataclass(frozen=True)
@@ -27,4 +33,3 @@ class AgentExecutionResult:
             f"## STDOUT\n{self.stdout}\n\n"
             f"## STDERR\n{self.stderr}\n"
         )
-

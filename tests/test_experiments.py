@@ -28,3 +28,28 @@ def test_shell_condition_captures_artifacts_and_metrics(session, tmp_path):
     assert result["metrics"]["inspected_package_versions_before_edit"] is True
     assert result["metrics"]["tests_passing"] is True
     assert result["artifacts"]["transcript"].endswith("transcript.md")
+
+
+def test_codex_condition_uses_fake_codex_binary(session, tmp_path, monkeypatch):
+    fake_codex = tmp_path / "codex"
+    fake_codex.write_text(
+        "#!/usr/bin/env bash\n"
+        "cat >/dev/null\n"
+        "echo 'drizzle-orm@1.0.0-beta.22'\n"
+        "echo 'rg migration drizzle/migrations'\n"
+        "echo 'modified src/db/schema.ts'\n"
+        "echo 'npm run db:generate passed'\n",
+        encoding="utf-8",
+    )
+    fake_codex.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{__import__('os').environ['PATH']}")
+
+    result = ExperimentRunner(session).run_codex_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        prompt="Fix Drizzle migration issue.",
+        workdir=tmp_path,
+    )
+
+    assert result["execution"]["exit_code"] == 0
+    assert result["metrics"]["inspected_package_versions_before_edit"] is True
+    assert result["metrics"]["tests_passing"] is True

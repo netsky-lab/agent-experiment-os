@@ -3,7 +3,13 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from experiment_os.agents import AgentRunRequest, ShellAgentAdapter
+from experiment_os.agents import (
+    AgentAdapter,
+    AgentRunRequest,
+    CodexCliAdapter,
+    CodexCliOptions,
+    ShellAgentAdapter,
+)
 from experiment_os.artifacts import ArtifactStore
 from experiment_os.db.models import ExperimentRunResult
 from experiment_os.domain.schemas import (
@@ -89,6 +95,54 @@ class ExperimentRunner:
         workdir: Path,
         timeout_seconds: int = 300,
     ) -> dict:
+        return self._run_agent_condition(
+            condition_id=condition_id,
+            adapter=ShellAgentAdapter(),
+            agent_name="shell",
+            command=command,
+            workdir=workdir,
+            prompt=None,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def run_codex_condition(
+        self,
+        *,
+        condition_id: str,
+        prompt: str,
+        workdir: Path,
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+    ) -> dict:
+        return self._run_agent_condition(
+            condition_id=condition_id,
+            adapter=CodexCliAdapter(
+                CodexCliOptions(
+                    model=model,
+                    sandbox=sandbox,
+                    approval_policy=approval_policy,
+                )
+            ),
+            agent_name="codex",
+            command="codex exec",
+            workdir=workdir,
+            prompt=prompt,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def _run_agent_condition(
+        self,
+        *,
+        condition_id: str,
+        adapter: AgentAdapter,
+        agent_name: str,
+        command: str,
+        workdir: Path,
+        prompt: str | None,
+        timeout_seconds: int,
+    ) -> dict:
         SeedService(self._session).seed()
         self.seed_drizzle_experiment()
 
@@ -98,9 +152,9 @@ class ExperimentRunner:
 
         run = self._recorder.start_run(
             RunStartInput(
-                task="Run shell agent condition",
+                task=f"Run {agent_name} agent condition",
                 repo=str(workdir),
-                agent="shell",
+                agent=agent_name,
                 model=None,
                 toolchain="shell",
                 metadata={
@@ -112,15 +166,15 @@ class ExperimentRunner:
             )
         )
         env: dict[str, str] = {}
-        prompt: str | None = None
+        effective_prompt = prompt
 
         if condition.config.get("brief_required"):
             brief = BriefCompiler(self._session).compile(
                 BriefRequest(
-                    task="Run shell agent condition",
+                    task=f"Run {agent_name} agent condition",
                     repo=str(workdir),
                     libraries=["drizzle", "drizzle-orm"],
-                    agent="shell",
+                    agent=agent_name,
                     toolchain="shell",
                 )
             )
@@ -146,11 +200,11 @@ class ExperimentRunner:
                     },
                 )
             )
-            prompt = _brief_prompt(brief, dependencies.model_dump())
+            brief_prompt = _brief_prompt(brief, dependencies.model_dump())
             brief_path = ArtifactStore().write_text(
                 run_id=run["run_id"],
                 name="brief.md",
-                content=prompt,
+                content=brief_prompt,
             )
             self._recorder.record_artifact(
                 RunArtifactInput(
@@ -162,12 +216,16 @@ class ExperimentRunner:
                 )
             )
             env["EXPERIMENT_OS_BRIEF_PATH"] = str(brief_path)
+            if effective_prompt:
+                effective_prompt = f"{brief_prompt}\n\n# User Task\n\n{effective_prompt}"
+            else:
+                effective_prompt = brief_prompt
 
-        execution = ShellAgentAdapter().run(
+        execution = adapter.run(
             AgentRunRequest(
                 command=command,
                 workdir=workdir,
-                prompt=prompt,
+                prompt=effective_prompt,
                 env=env,
                 timeout_seconds=timeout_seconds,
             )

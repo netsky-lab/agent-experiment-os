@@ -73,6 +73,23 @@ docker compose run --rm app uv run experiment-os experiments run-shell \
   --workdir /workspace
 ```
 
+Codex CLI brief-assisted:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex \
+  --condition-id condition.001-drizzle-brief-assisted \
+  --prompt "Fix the Drizzle migration default-value issue with minimal changes." \
+  --workdir /workspace \
+  --sandbox workspace-write \
+  --approval-policy never
+```
+
+Codex MCP registration:
+
+```bash
+codex mcp add experiment-os -- docker compose run --rm app uv run experiment-os mcp serve
+```
+
 ## 5. Record Observations
 
 Use run events:

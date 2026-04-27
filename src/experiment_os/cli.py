@@ -156,6 +156,30 @@ def experiments_run_shell(
     typer.echo(json.dumps(result, indent=2))
 
 
+@experiments_app.command("run-codex")
+def experiments_run_codex(
+    condition_id: str = typer.Option(..., help="Experiment condition id."),
+    prompt: str = typer.Option(..., help="Prompt to send to codex exec."),
+    workdir: Path = typer.Option(Path("."), help="Working directory for Codex."),
+    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout."),
+) -> None:
+    """Run a Codex CLI condition through codex exec and capture transcript artifacts."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_codex_condition(
+            condition_id=condition_id,
+            prompt=prompt,
+            workdir=workdir,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @demo_app.command("smoke")
 def demo_smoke() -> None:
     """Run the v0 work-brief loop without an MCP client."""

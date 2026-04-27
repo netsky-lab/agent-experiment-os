@@ -70,6 +70,23 @@ docker compose run --rm app uv run experiment-os experiments run-shell \
   --workdir /workspace
 ```
 
+Run a Codex CLI condition through `codex exec`:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex \
+  --condition-id condition.001-drizzle-brief-assisted \
+  --prompt "Fix the Drizzle migration default-value issue with minimal changes." \
+  --workdir /workspace \
+  --sandbox workspace-write \
+  --approval-policy never
+```
+
+Register Experiment OS as a Codex MCP server:
+
+```bash
+codex mcp add experiment-os -- docker compose run --rm app uv run experiment-os mcp serve
+```
+
 Search local knowledge with full-text + pgvector retrieval:
 
 ```bash
