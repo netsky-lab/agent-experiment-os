@@ -53,3 +53,21 @@ def test_review_promotes_claim_to_policy_and_intervention(session):
     assert policy["metadata"]["appliesTo"]["library"] == "drizzle"
     assert intervention["type"] == "intervention"
     assert intervention["metadata"]["mitigates"] == ["failure.tool-call-syntax-drift"]
+
+
+def test_review_queue_includes_policy_candidates(session):
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.review",
+            type="policy",
+            title="Reviewable policy",
+            status="draft",
+            confidence="medium",
+            summary="A generated policy candidate.",
+            metadata={"review_required": True},
+        )
+    )
+
+    queue = ReviewService(session).review_queue()
+
+    assert any(item["id"] == "policy.candidate.review" for item in queue)

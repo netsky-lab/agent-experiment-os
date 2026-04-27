@@ -20,6 +20,7 @@ class MetricsExtractor:
         failures = [event for event in events if event.event_type == "failure_observed"]
         interventions = [event for event in events if event.event_type == "intervention_applied"]
         edits = [event for event in events if event.event_type == "file_edited"]
+        mcp_calls = [event for event in events if event.event_type == "mcp_tool_called"]
         dependency_edits = [event for event in edits if _looks_like_dependency_edit(event.payload)]
         migration_edits = [event for event in edits if _looks_like_migration_edit(event.payload)]
         local_drizzle_kit_version = _checked_version(events, "drizzle-kit")
@@ -47,6 +48,27 @@ class MetricsExtractor:
             ),
             "blind_issue_version_alignment": (
                 local_drizzle_kit_version == "0.31.1" and bool(dependency_edits)
+            ),
+            "mcp_tool_call_count": len(mcp_calls),
+            "mcp_pre_work_protocol_called": _mcp_tool_called(
+                mcp_calls,
+                "start_pre_work_protocol",
+            ),
+            "mcp_dependency_graph_loaded": _mcp_tool_called(
+                mcp_calls,
+                "get_agent_dependency_graph",
+            )
+            or _mcp_tool_called(mcp_calls, "resolve_dependencies"),
+            "mcp_dependencies_resolved_before_edit": _mcp_dependency_before_edit(events),
+            "mcp_final_answer_recorded": _mcp_recorded_event(mcp_calls, "final_answer"),
+            "mcp_summary_requested": _mcp_tool_called(mcp_calls, "summarize_run"),
+            "no_edit_decision_recorded": any(
+                event.event_type == "no_edit_decision" for event in events
+            ),
+            "source_issue_opened_before_decision": _event_before_any(
+                events,
+                "source_issue_opened",
+                {"file_edited", "no_edit_decision"},
             ),
             "stale_api_usage_count": _count_failure_type(failures, "stale_library_knowledge"),
             "retry_count": _count_failure_type(failures, "retry"),
@@ -117,6 +139,47 @@ def _checked_version(events: list[RunEvent], package: str) -> str | None:
             if version is not None:
                 return str(version)
     return None
+
+
+def _mcp_tool_called(events: list[RunEvent], tool: str) -> bool:
+    return any(event.payload.get("tool") == tool for event in events)
+
+
+def _mcp_recorded_event(events: list[RunEvent], event_type: str) -> bool:
+    return any(
+        event.payload.get("tool") == "record_run_event"
+        and event.payload.get("recorded_event_type") == event_type
+        for event in events
+    )
+
+
+def _mcp_dependency_before_edit(events: list[RunEvent]) -> bool:
+    for event in events:
+        if event.event_type == "file_edited":
+            return False
+        if event.event_type != "mcp_tool_called":
+            continue
+        if event.payload.get("tool") in {
+            "start_pre_work_protocol",
+            "get_agent_dependency_graph",
+            "resolve_dependencies",
+        }:
+            return True
+    return False
+
+
+def _event_before_any(
+    events: list[RunEvent],
+    source_event_type: str,
+    target_event_types: set[str],
+) -> bool:
+    seen_source = False
+    for event in events:
+        if event.event_type == source_event_type:
+            seen_source = True
+        if event.event_type in target_event_types:
+            return seen_source
+    return False
 
 
 def _count_failure_type(failures: list[RunEvent], failure_type: str) -> int:

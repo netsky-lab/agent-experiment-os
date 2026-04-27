@@ -42,6 +42,8 @@ class PolicyCandidateService:
                     "source": "experiment_report",
                     "experiment_id": comparison_report["experiment_id"],
                     "comparison": comparison_report["comparison"],
+                    "matrix_id": comparison_report.get("matrix_id"),
+                    "candidate_condition": comparison_report.get("candidate_condition"),
                     "baseline_run_id": comparison_report["conditions"]["baseline"]["run"]["run_id"],
                     "brief_run_id": (
                         comparison_report["conditions"]["brief_assisted"]["run"]["run_id"]

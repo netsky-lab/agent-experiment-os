@@ -30,6 +30,12 @@ Success criterion:
 
 An agent can call MCP, receive required wiki pages, resolve dependencies, do work, and write back a run report.
 
+Current status:
+
+- Codex MCP-aware version-trap run completed with real MCP tool calls.
+- Matrix runner added for baseline/static-brief/MCP-brief repeats.
+- MCP protocol adherence metrics added.
+
 ## Phase 2: Issue Knowledge Ingestion
 
 Goal: turn GitHub issues into source-backed knowledge cards.
@@ -63,6 +69,11 @@ Success criterion:
 
 A repeated task family shows fewer repeated failures after approved policies enter briefs.
 
+Current status:
+
+- Generated policy candidates are draft wiki pages.
+- Draft policies now appear in the review queue and policy candidate API.
+
 ## Phase 4: Product UI
 
 Goal: present the knowledge system clearly.
@@ -80,4 +91,3 @@ Build:
 Success criterion:
 
 A human can inspect why a brief contains a recommendation and trace it back to sources, runs, failures, and interventions.
-

@@ -27,7 +27,7 @@ class ReviewService:
         queued = [
             page
             for page in pages
-            if page.type in {"claim", "knowledge_card"}
+            if page.type in {"claim", "knowledge_card", "policy", "intervention"}
             and page.page_metadata.get("review_required", True)
         ]
         return [page_to_dict(page) for page in queued[:limit]]

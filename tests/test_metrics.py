@@ -79,3 +79,49 @@ def test_metrics_count_harness_script_edits_as_wrong_file_edits(session):
     summary = recorder.summarize_run(run["run_id"])
 
     assert summary["metrics"]["wrong_file_edits"] == 1
+
+
+def test_metrics_detect_mcp_pre_work_protocol(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(RunStartInput(task="mcp metrics test"))
+
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="mcp_tool_called",
+            payload={"tool": "start_pre_work_protocol", "server": "experiment_os"},
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="mcp_tool_called",
+            payload={"tool": "resolve_dependencies", "server": "experiment_os"},
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="mcp_tool_called",
+            payload={
+                "tool": "record_run_event",
+                "recorded_event_type": "final_answer",
+                "server": "experiment_os",
+            },
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="mcp_tool_called",
+            payload={"tool": "summarize_run", "server": "experiment_os"},
+        )
+    )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["mcp_tool_call_count"] == 4
+    assert summary["metrics"]["mcp_pre_work_protocol_called"] is True
+    assert summary["metrics"]["mcp_dependencies_resolved_before_edit"] is True
+    assert summary["metrics"]["mcp_final_answer_recorded"] is True
+    assert summary["metrics"]["mcp_summary_requested"] is True

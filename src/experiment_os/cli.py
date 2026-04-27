@@ -15,6 +15,7 @@ from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.experiments import ExperimentRunner
 from experiment_os.services.issues import GitHubIssueIngestor
+from experiment_os.services.matrix import ExperimentMatrixRunner
 from experiment_os.services.review import ReviewService
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.seed import SeedService
@@ -344,6 +345,33 @@ def experiments_run_codex_mcp_version_trap(
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-codex-version-trap-matrix")
+def experiments_run_codex_version_trap_matrix(
+    repeat_count: int = typer.Option(1, min=1, help="Number of repeats per condition."),
+    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
+    include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/drizzle-version-trap-repo"),
+        help="Fixture repo copied into disposable workdirs before running Codex.",
+    ),
+) -> None:
+    """Run a repeated baseline/static-brief/MCP-brief version-trap matrix."""
+    with session_scope() as session:
+        result = ExperimentMatrixRunner(session).run_version_trap_matrix(
+            repeat_count=repeat_count,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+            include_mcp=include_mcp,
         )
     typer.echo(json.dumps(result, indent=2))
 

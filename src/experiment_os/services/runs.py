@@ -2,8 +2,6 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from uuid import uuid4
-
 from experiment_os.domain.schemas import RunArtifactInput, RunEventInput, RunStartInput
 from experiment_os.repositories.runs import RunRepository
 from experiment_os.services.metrics import MetricsExtractor

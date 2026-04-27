@@ -39,6 +39,15 @@ HTTP: `GET /experiments/{experiment_id}`
 Contains the experiment, its conditions, and result reports. The UI can render this as hypothesis,
 conditions, metric deltas, and run links.
 
+## Experiment Matrix
+
+Use case: `DashboardReadService.experiment_matrix(experiment_id)`
+
+HTTP: `GET /experiments/{experiment_id}/matrix`
+
+Groups repeated condition runs by `matrix_id` and `matrix_condition`. The first matrix view should
+compare baseline, static brief, and MCP brief conditions across repeat counts.
+
 ## Run Detail
 
 Use case: `DashboardReadService.run_detail(run_id)`
@@ -62,8 +71,18 @@ Use case: `DashboardReadService.review_queue(limit=50)`
 
 HTTP: `GET /review-queue?limit=50`
 
-Shows draft claims and knowledge cards that are evidence-only until reviewed. The UI should make the
-review gate explicit: raw issue claims are not policy.
+Shows draft claims, knowledge cards, policies, and interventions that are evidence-only until
+reviewed. The UI should make the review gate explicit: raw issue claims and generated policy
+candidates are not accepted policy.
+
+## Policy Candidates
+
+Use case: `DashboardReadService.policy_candidates(limit=50)`
+
+HTTP: `GET /policy-candidates?limit=50`
+
+Shows generated draft policies that came from experiment results or promoted claims. These are the
+main human review object before a candidate becomes an agent decision rule.
 
 ## Evidence Graph
 

@@ -50,6 +50,9 @@ def _string_values(value: Any) -> Iterable[str]:
 def _events_from_payload(run_id: str, payload: dict[str, Any]) -> list[RunEventInput]:
     item = payload.get("item")
     if isinstance(item, dict):
+        if item.get("type") == "mcp_tool_call":
+            event = _mcp_tool_event(run_id, payload, item)
+            return [event] if event else []
         if item.get("type") == "command_execution":
             return _events_from_command_item(run_id, item)
         if item.get("type") == "file_change":
@@ -70,6 +73,35 @@ def _events_from_payload(run_id: str, payload: dict[str, Any]) -> list[RunEventI
         return _events_from_command_item(run_id, synthetic_item)
 
     return []
+
+
+def _mcp_tool_event(
+    run_id: str,
+    payload: dict[str, Any],
+    item: dict[str, Any],
+) -> RunEventInput | None:
+    if payload.get("type") != "item.completed" and item.get("status") != "completed":
+        return None
+
+    arguments = item.get("arguments")
+    if not isinstance(arguments, dict):
+        arguments = {}
+
+    event_payload: dict[str, Any] = {
+        "server": item.get("server"),
+        "tool": item.get("tool"),
+        "status": item.get("status"),
+        "error": item.get("error"),
+    }
+    if item.get("tool") == "record_run_event":
+        event_payload["recorded_event_type"] = arguments.get("event_type")
+        event_payload["recorded_run_id"] = arguments.get("run_id")
+
+    return RunEventInput(
+        run_id=run_id,
+        event_type="mcp_tool_called",
+        payload=event_payload,
+    )
 
 
 def _events_from_command_item(run_id: str, item: dict[str, Any]) -> list[RunEventInput]:

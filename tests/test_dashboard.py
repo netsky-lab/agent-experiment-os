@@ -20,6 +20,27 @@ def test_dashboard_lists_experiments_and_run_detail(session):
     assert "metrics" in run
 
 
+def test_dashboard_exposes_matrix_projection(session, tmp_path):
+    ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test passed'",
+        workdir=tmp_path,
+        timeout_seconds=30,
+        run_metadata={
+            "matrix_id": "matrix.test",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
+
+    dashboard = DashboardReadService(session)
+    matrix = dashboard.experiment_matrix("experiment.001-drizzle-brief")
+    matrices = {item["matrix_id"]: item for item in matrix["matrices"]}
+
+    assert "matrix.test" in matrices
+    assert "static_brief" in matrices["matrix.test"]["conditions"]
+
+
 def test_dashboard_exposes_evidence_graph_and_review_actions(session):
     brief = BriefCompiler(session).compile(
         BriefRequest(
@@ -47,3 +68,21 @@ def test_dashboard_exposes_evidence_graph_and_review_actions(session):
     assert graph["graph"]["nodes"]
     assert "evidence" in graph["legend"]
     assert any(action["id"] == "promote_policy" for action in actions["actions"])
+
+
+def test_dashboard_lists_policy_candidates(session):
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.dashboard",
+            type="policy",
+            title="Candidate policy",
+            status="draft",
+            confidence="medium",
+            summary="A policy candidate.",
+            metadata={"review_required": True},
+        )
+    )
+
+    candidates = DashboardReadService(session).policy_candidates()
+
+    assert candidates["items"][0]["id"] == "policy.candidate.dashboard"

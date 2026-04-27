@@ -9,7 +9,12 @@ from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.services.protocol import AgentWorkProtocol
 from experiment_os.services.metrics import MetricsExtractor
 from experiment_os.services.review import ReviewService
-from experiment_os.services.serialization import artifact_to_dict, event_to_dict, run_to_dict
+from experiment_os.services.serialization import (
+    artifact_to_dict,
+    event_to_dict,
+    page_to_dict,
+    run_to_dict,
+)
 
 
 class DashboardReadService:
@@ -79,6 +84,27 @@ class DashboardReadService:
             ],
         }
 
+    def experiment_matrix(self, experiment_id: str) -> dict[str, Any]:
+        experiment = self._experiments.get_experiment(experiment_id)
+        if experiment is None:
+            raise ValueError(f"Unknown experiment_id: {experiment_id}")
+
+        matrices: dict[str, list] = {}
+        for result in self._experiments.list_results(experiment_id):
+            metadata = result.report.get("run", {}).get("metadata", {})
+            matrix_id = metadata.get("matrix_id")
+            if not matrix_id:
+                continue
+            matrices.setdefault(matrix_id, []).append(result)
+
+        return {
+            "experiment_id": experiment_id,
+            "matrices": [
+                _matrix_projection(matrix_id, results)
+                for matrix_id, results in sorted(matrices.items())
+            ],
+        }
+
     def run_detail(self, run_id: str) -> dict[str, Any]:
         run = self._runs.get_run(run_id)
         if run is None:
@@ -94,6 +120,14 @@ class DashboardReadService:
 
     def review_queue(self, *, limit: int = 50) -> dict[str, Any]:
         return {"items": self._review.review_queue(limit=limit)}
+
+    def policy_candidates(self, *, limit: int = 50) -> dict[str, Any]:
+        pages = [
+            page
+            for page in self._wiki.list_pages_filtered(status="draft", page_type="policy")
+            if page.page_metadata.get("review_required", True)
+        ]
+        return {"items": [page_to_dict(page) for page in pages[:limit]]}
 
     def evidence_graph(self, *, brief_id: str) -> dict[str, Any]:
         brief = self._briefs.get(brief_id)
@@ -142,3 +176,63 @@ class DashboardReadService:
             },
             "actions": actions,
         }
+
+
+def _matrix_projection(matrix_id: str, results: list) -> dict[str, Any]:
+    by_condition: dict[str, list] = {}
+    for result in results:
+        metadata = result.report.get("run", {}).get("metadata", {})
+        condition = metadata.get("matrix_condition", result.condition_id)
+        by_condition.setdefault(condition, []).append(result)
+
+    return {
+        "matrix_id": matrix_id,
+        "matrix_kind": _first_metadata(results).get("matrix_kind"),
+        "conditions": {
+            condition: {
+                "run_count": len(condition_results),
+                "runs": [
+                    {
+                        "result_id": result.id,
+                        "run_id": result.run_id,
+                        "metrics": result.metrics,
+                        "created_at": (
+                            result.created_at.isoformat() if result.created_at else None
+                        ),
+                    }
+                    for result in condition_results
+                ],
+                "metrics": _aggregate_metrics([result.metrics for result in condition_results]),
+            }
+            for condition, condition_results in sorted(by_condition.items())
+        },
+    }
+
+
+def _first_metadata(results: list) -> dict[str, Any]:
+    if not results:
+        return {}
+    return results[0].report.get("run", {}).get("metadata", {})
+
+
+def _aggregate_metrics(metrics_list: list[dict]) -> dict:
+    keys = sorted({key for metrics in metrics_list for key in metrics})
+    aggregate: dict[str, dict] = {}
+    for key in keys:
+        values = [metrics.get(key) for metrics in metrics_list if key in metrics]
+        if all(isinstance(value, bool) for value in values):
+            true_count = sum(1 for value in values if value)
+            aggregate[key] = {
+                "true_count": true_count,
+                "false_count": len(values) - true_count,
+                "rate": true_count / len(values) if values else 0,
+            }
+        elif all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) for value in values
+        ):
+            aggregate[key] = {
+                "mean": sum(values) / len(values) if values else 0,
+                "min": min(values) if values else None,
+                "max": max(values) if values else None,
+            }
+    return aggregate

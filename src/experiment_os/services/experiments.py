@@ -107,6 +107,7 @@ class ExperimentRunner:
         command: str,
         workdir: Path,
         timeout_seconds: int = 300,
+        run_metadata: dict | None = None,
     ) -> dict:
         return self._run_agent_condition(
             condition_id=condition_id,
@@ -116,6 +117,7 @@ class ExperimentRunner:
             workdir=workdir,
             prompt=None,
             timeout_seconds=timeout_seconds,
+            run_metadata=run_metadata,
         )
 
     def run_codex_condition(
@@ -129,6 +131,7 @@ class ExperimentRunner:
         approval_policy: str = "never",
         timeout_seconds: int = 900,
         experiment_os_mcp: bool = False,
+        run_metadata: dict | None = None,
     ) -> dict:
         return self._run_agent_condition(
             condition_id=condition_id,
@@ -145,6 +148,7 @@ class ExperimentRunner:
             workdir=workdir,
             prompt=prompt,
             timeout_seconds=timeout_seconds,
+            run_metadata=run_metadata,
         )
 
     def run_codex_toy_fixture(
@@ -157,6 +161,7 @@ class ExperimentRunner:
         approval_policy: str = "never",
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/drizzle-toy-repo"),
+        run_metadata: dict | None = None,
     ) -> dict:
         workdir = FixtureWorkspacePreparer().prepare(
             fixture_path=fixture_path,
@@ -170,6 +175,7 @@ class ExperimentRunner:
             sandbox=sandbox,
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
+            run_metadata=run_metadata,
         )
 
     def run_codex_toy_comparison(
@@ -231,6 +237,7 @@ class ExperimentRunner:
         approval_policy: str = "never",
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/drizzle-version-trap-repo"),
+        run_metadata: dict | None = None,
     ) -> dict:
         workdir = FixtureWorkspacePreparer().prepare(
             fixture_path=fixture_path,
@@ -245,6 +252,7 @@ class ExperimentRunner:
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
             experiment_os_mcp=True,
+            run_metadata=run_metadata,
         )
 
     def run_codex_version_trap_comparison(
@@ -294,6 +302,7 @@ class ExperimentRunner:
         workdir: Path,
         prompt: str | None,
         timeout_seconds: int,
+        run_metadata: dict | None = None,
     ) -> dict:
         SeedService(self._session).seed()
         self.seed_drizzle_experiment()
@@ -302,6 +311,15 @@ class ExperimentRunner:
         if condition is None:
             raise ValueError(f"Unknown condition_id: {condition_id}")
 
+        metadata = {
+            "experiment_id": DRIZZLE_EXPERIMENT_ID,
+            "condition_id": condition_id,
+            "condition": condition.name,
+            "command": command,
+        }
+        if run_metadata:
+            metadata.update(run_metadata)
+
         run = self._recorder.start_run(
             RunStartInput(
                 task=f"Run {agent_name} agent condition",
@@ -309,12 +327,7 @@ class ExperimentRunner:
                 agent=agent_name,
                 model=None,
                 toolchain="shell",
-                metadata={
-                    "experiment_id": DRIZZLE_EXPERIMENT_ID,
-                    "condition_id": condition_id,
-                    "condition": condition.name,
-                    "command": command,
-                },
+                metadata=metadata,
             )
         )
         env: dict[str, str] = {}

@@ -119,6 +119,14 @@ Run Codex with Experiment OS mounted as an MCP server for the task:
 docker compose run --rm app uv run experiment-os experiments run-codex-mcp-version-trap
 ```
 
+Run a repeated baseline/static-brief/MCP-brief matrix:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access
+```
+
 Register Experiment OS as a Codex MCP server:
 
 ```bash

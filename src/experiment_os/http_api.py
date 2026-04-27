@@ -38,6 +38,14 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/experiments/{experiment_id}/matrix")
+    def experiment_matrix(experiment_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).experiment_matrix(experiment_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.get("/runs/{run_id}")
     def run_detail(run_id: str) -> dict[str, Any]:
         with session_scope() as session:
@@ -50,6 +58,11 @@ def create_app() -> FastAPI:
     def review_queue(limit: int = 50) -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).review_queue(limit=limit)
+
+    @app.get("/policy-candidates")
+    def policy_candidates(limit: int = 50) -> dict[str, Any]:
+        with session_scope() as session:
+            return DashboardReadService(session).policy_candidates(limit=limit)
 
     @app.get("/briefs/{brief_id}/evidence-graph")
     def evidence_graph(brief_id: str) -> dict[str, Any]:
