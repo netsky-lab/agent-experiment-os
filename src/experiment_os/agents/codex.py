@@ -15,6 +15,7 @@ class CodexCliOptions:
     approval_policy: str = "never"
     json_events: bool = True
     skip_git_repo_check: bool = True
+    experiment_os_mcp: bool = False
     extra_args: tuple[str, ...] = ()
 
 
@@ -69,6 +70,21 @@ class CodexCliAdapter:
             args.append("--json")
         if self._options.model:
             args.extend(["--model", self._options.model])
+        if self._options.experiment_os_mcp:
+            args.extend(_experiment_os_mcp_config_args())
         args.extend(self._options.extra_args)
         args.append("-")
         return args
+
+
+def _experiment_os_mcp_config_args() -> list[str]:
+    args = [
+        "-c",
+        'mcp_servers.experiment_os.command="uv"',
+        "-c",
+        'mcp_servers.experiment_os.args=["run","experiment-os","mcp","serve"]',
+    ]
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        args.extend(["-c", f'mcp_servers.experiment_os.env.DATABASE_URL="{database_url}"'])
+    return args

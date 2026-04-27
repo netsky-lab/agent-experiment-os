@@ -24,6 +24,8 @@ from experiment_os.domain.schemas import (
 from experiment_os.prompts import (
     CODEX_BASELINE_TOY_PROMPT,
     CODEX_EXPERIMENT_PROMPT,
+    CODEX_MCP_AWARE_VERSION_TRAP_PROMPT,
+    CODEX_VERSION_TRAP_BASELINE_PROMPT,
     CODEX_VERSION_TRAP_PROMPT,
 )
 from experiment_os.repositories.experiments import ExperimentRepository
@@ -33,6 +35,7 @@ from experiment_os.services.codex_events import CodexJsonlEventExtractor
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.experiment_reports import ExperimentReportGenerator
 from experiment_os.services.metrics import MetricsExtractor
+from experiment_os.services.policy_candidates import PolicyCandidateService
 from experiment_os.services.reports import RunReportGenerator
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.seed import SeedService
@@ -125,6 +128,7 @@ class ExperimentRunner:
         sandbox: str = "workspace-write",
         approval_policy: str = "never",
         timeout_seconds: int = 900,
+        experiment_os_mcp: bool = False,
     ) -> dict:
         return self._run_agent_condition(
             condition_id=condition_id,
@@ -133,6 +137,7 @@ class ExperimentRunner:
                     model=model,
                     sandbox=sandbox,
                     approval_policy=approval_policy,
+                    experiment_os_mcp=experiment_os_mcp,
                 )
             ),
             agent_name="codex",
@@ -216,6 +221,68 @@ class ExperimentRunner:
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
         )
+
+    def run_codex_mcp_aware_version_trap(
+        self,
+        *,
+        condition_id: str = "condition.001-drizzle-brief-assisted",
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/drizzle-version-trap-repo"),
+    ) -> dict:
+        workdir = FixtureWorkspacePreparer().prepare(
+            fixture_path=fixture_path,
+            label=f"{condition_id}-mcp-aware",
+        )
+        return self.run_codex_condition(
+            condition_id=condition_id,
+            prompt=CODEX_MCP_AWARE_VERSION_TRAP_PROMPT,
+            workdir=workdir,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            experiment_os_mcp=True,
+        )
+
+    def run_codex_version_trap_comparison(
+        self,
+        *,
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/drizzle-version-trap-repo"),
+    ) -> dict:
+        baseline = self.run_codex_toy_fixture(
+            condition_id="condition.001-drizzle-baseline",
+            prompt=CODEX_VERSION_TRAP_BASELINE_PROMPT,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+        brief_assisted = self.run_codex_toy_fixture(
+            condition_id="condition.001-drizzle-brief-assisted",
+            prompt=CODEX_VERSION_TRAP_PROMPT,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+        comparison_report = _comparison_report(
+            baseline,
+            brief_assisted,
+            comparison="codex_version_trap_baseline_vs_brief_assisted",
+        )
+        comparison_report["policy_candidate"] = PolicyCandidateService(
+            self._session
+        ).propose_from_version_trap(comparison_report)
+        return comparison_report
 
     def _run_agent_condition(
         self,
@@ -538,7 +605,12 @@ def _interpret(condition_name: str, metrics: dict) -> str:
     return "Baseline fixture did not reproduce the expected failure signal."
 
 
-def _comparison_report(baseline: dict, brief_assisted: dict) -> dict:
+def _comparison_report(
+    baseline: dict,
+    brief_assisted: dict,
+    *,
+    comparison: str = "codex_toy_baseline_vs_brief_assisted",
+) -> dict:
     baseline_metrics = baseline["metrics"]
     brief_metrics = brief_assisted["metrics"]
     deltas = {
@@ -559,7 +631,7 @@ def _comparison_report(baseline: dict, brief_assisted: dict) -> dict:
     )
     return {
         "experiment_id": DRIZZLE_EXPERIMENT_ID,
-        "comparison": "codex_toy_baseline_vs_brief_assisted",
+        "comparison": comparison,
         "conditions": {
             "baseline": baseline,
             "brief_assisted": brief_assisted,

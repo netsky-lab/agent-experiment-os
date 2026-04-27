@@ -107,6 +107,18 @@ Run the version-trap fixture where issue evidence conflicts with local package v
 docker compose run --rm app uv run experiment-os experiments run-codex-version-trap
 ```
 
+Run baseline vs brief-assisted Codex conditions on the version-trap fixture:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-comparison
+```
+
+Run Codex with Experiment OS mounted as an MCP server for the task:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-mcp-version-trap
+```
+
 Register Experiment OS as a Codex MCP server:
 
 ```bash
@@ -138,6 +150,12 @@ Run the MCP server over streamable HTTP:
 
 ```bash
 docker compose run --rm app uv run experiment-os mcp serve --transport streamable-http
+```
+
+Run the dashboard/backend HTTP API:
+
+```bash
+docker compose run --rm --service-ports app uv run experiment-os api serve --host 0.0.0.0 --port 8080
 ```
 
 On machines where Docker port publishing works normally, the same check can also run from the host:

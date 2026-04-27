@@ -23,12 +23,14 @@ app = typer.Typer(help="Experiment OS developer CLI.")
 db_app = typer.Typer(help="Database commands.")
 demo_app = typer.Typer(help="Demo and smoke-check commands.")
 mcp_app = typer.Typer(help="MCP server commands.")
+api_app = typer.Typer(help="HTTP API commands.")
 knowledge_app = typer.Typer(help="Knowledge search and indexing commands.")
 issues_app = typer.Typer(help="GitHub issue ingestion commands.")
 experiments_app = typer.Typer(help="Experiment runner commands.")
 app.add_typer(db_app, name="db")
 app.add_typer(demo_app, name="demo")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(api_app, name="api")
 app.add_typer(knowledge_app, name="knowledge")
 app.add_typer(issues_app, name="issues")
 app.add_typer(experiments_app, name="experiments")
@@ -192,6 +194,10 @@ def experiments_run_codex(
     sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
     approval_policy: str = typer.Option("never", help="Codex approval policy."),
     timeout_seconds: int = typer.Option(900, help="Command timeout."),
+    experiment_os_mcp: bool = typer.Option(
+        False,
+        help="Inject Experiment OS MCP config into Codex.",
+    ),
 ) -> None:
     """Run a Codex CLI condition through codex exec and capture transcript artifacts."""
     with session_scope() as session:
@@ -203,6 +209,7 @@ def experiments_run_codex(
             sandbox=sandbox,
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
+            experiment_os_mcp=experiment_os_mcp,
         )
     typer.echo(json.dumps(result, indent=2))
 
@@ -290,6 +297,57 @@ def experiments_run_codex_version_trap(
     typer.echo(json.dumps(result, indent=2))
 
 
+@experiments_app.command("run-codex-version-trap-comparison")
+def experiments_run_codex_version_trap_comparison(
+    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout per condition."),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/drizzle-version-trap-repo"),
+        help="Fixture repo copied into disposable workdirs before running Codex.",
+    ),
+) -> None:
+    """Run baseline and brief-assisted Codex conditions against the version-trap fixture."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_codex_version_trap_comparison(
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-codex-mcp-version-trap")
+def experiments_run_codex_mcp_version_trap(
+    condition_id: str = typer.Option(
+        "condition.001-drizzle-brief-assisted",
+        help="Experiment condition id.",
+    ),
+    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout."),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/drizzle-version-trap-repo"),
+        help="Fixture repo copied into a disposable workdir before running Codex.",
+    ),
+) -> None:
+    """Run Codex with Experiment OS MCP configured and self-recording instructions."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_codex_mcp_aware_version_trap(
+            condition_id=condition_id,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @demo_app.command("smoke")
 def demo_smoke() -> None:
     """Run the v0 work-brief loop without an MCP client."""
@@ -355,3 +413,15 @@ def mcp_serve(
 ) -> None:
     """Run the MCP server."""
     create_mcp_server().run(transport=transport)
+
+
+@api_app.command("serve")
+def api_serve(
+    host: str = typer.Option("127.0.0.1", help="Host to bind."),
+    port: int = typer.Option(8000, help="Port to bind."),
+    reload: bool = typer.Option(False, help="Enable uvicorn reload."),
+) -> None:
+    """Run the HTTP API for dashboard/read-model clients."""
+    import uvicorn
+
+    uvicorn.run("experiment_os.http_api:app", host=host, port=port, reload=reload)

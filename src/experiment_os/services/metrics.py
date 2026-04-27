@@ -20,6 +20,9 @@ class MetricsExtractor:
         failures = [event for event in events if event.event_type == "failure_observed"]
         interventions = [event for event in events if event.event_type == "intervention_applied"]
         edits = [event for event in events if event.event_type == "file_edited"]
+        dependency_edits = [event for event in edits if _looks_like_dependency_edit(event.payload)]
+        migration_edits = [event for event in edits if _looks_like_migration_edit(event.payload)]
+        local_drizzle_kit_version = _checked_version(events, "drizzle-kit")
 
         return {
             "event_count": len(events),
@@ -35,6 +38,16 @@ class MetricsExtractor:
             "intervention_count": len(interventions),
             "file_edit_count": len(edits),
             "wrong_file_edits": _wrong_file_edits(edits),
+            "dependency_changed": bool(dependency_edits),
+            "dependency_edit_count": len(dependency_edits),
+            "rewrote_migration_history": bool(migration_edits),
+            "migration_history_edit_count": len(migration_edits),
+            "preserved_local_version_constraint": (
+                local_drizzle_kit_version == "0.31.1" and not dependency_edits
+            ),
+            "blind_issue_version_alignment": (
+                local_drizzle_kit_version == "0.31.1" and bool(dependency_edits)
+            ),
             "stale_api_usage_count": _count_failure_type(failures, "stale_library_knowledge"),
             "retry_count": _count_failure_type(failures, "retry"),
         }
@@ -65,9 +78,45 @@ def _wrong_file_edits(edits: list[RunEvent]) -> int:
     count = 0
     for event in edits:
         path = str(event.payload.get("path", "")).lower()
-        if path and not any(token in path for token in ["drizzle", "migration", "schema", "package"]):
+        if path and not _looks_like_allowed_drizzle_task_edit(path):
             count += 1
     return count
+
+
+def _looks_like_allowed_drizzle_task_edit(path: str) -> bool:
+    return (
+        path.endswith("package.json")
+        or "src/db/schema" in path
+        or "drizzle.config" in path
+        or "drizzle/migrations/" in path
+        or "/migrations/" in path
+    )
+
+
+def _looks_like_dependency_edit(payload: dict) -> bool:
+    path = str(payload.get("path", "")).lower()
+    return (
+        path.endswith("package.json")
+        or path.endswith("package-lock.json")
+        or "pnpm-lock" in path
+    )
+
+
+def _looks_like_migration_edit(payload: dict) -> bool:
+    path = str(payload.get("path", "")).lower()
+    return "drizzle/migrations" in path or "/migrations/" in path
+
+
+def _checked_version(events: list[RunEvent], package: str) -> str | None:
+    package = package.lower()
+    for event in events:
+        if event.event_type != "package_version_checked":
+            continue
+        if str(event.payload.get("package", "")).lower() == package:
+            version = event.payload.get("version")
+            if version is not None:
+                return str(version)
+    return None
 
 
 def _count_failure_type(failures: list[RunEvent], failure_type: str) -> int:

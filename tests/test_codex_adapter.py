@@ -30,3 +30,30 @@ def test_codex_cli_adapter_invokes_exec_with_stdin_prompt(tmp_path: Path):
     assert "--json" in captured
     assert "stdin=Use Experiment OS brief before editing." in captured
 
+
+def test_codex_cli_adapter_can_inject_experiment_os_mcp_config(tmp_path: Path):
+    fake_codex = tmp_path / "codex"
+    capture = tmp_path / "capture.txt"
+    fake_codex.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf 'args=%s\\n' \"$*\" > {capture}\n"
+        "cat >/dev/null\n"
+        "echo '{\"event\":\"done\"}'\n",
+        encoding="utf-8",
+    )
+    fake_codex.chmod(0o755)
+
+    result = CodexCliAdapter(
+        CodexCliOptions(binary=str(fake_codex), experiment_os_mcp=True)
+    ).run(
+        AgentRunRequest(
+            command="codex exec",
+            workdir=tmp_path,
+            prompt="Use MCP.",
+        )
+    )
+
+    captured = capture.read_text(encoding="utf-8")
+    assert result.exit_code == 0
+    assert "mcp_servers.experiment_os.command" in captured
+    assert "experiment-os" in captured

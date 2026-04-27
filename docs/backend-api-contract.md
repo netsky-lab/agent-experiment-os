@@ -4,9 +4,13 @@ The dashboard should be built on top of backend use cases, not directly on datab
 first UI transport can be REST, MCP, or a server-rendered adapter, but it should expose the same
 read shapes.
 
+The current HTTP transport is `experiment-os api serve`, backed by `experiment_os.http_api`.
+
 ## Experiments List
 
 Use case: `DashboardReadService.list_experiments()`
+
+HTTP: `GET /experiments`
 
 ```json
 {
@@ -30,12 +34,16 @@ Use case: `DashboardReadService.list_experiments()`
 
 Use case: `DashboardReadService.experiment_detail(experiment_id)`
 
+HTTP: `GET /experiments/{experiment_id}`
+
 Contains the experiment, its conditions, and result reports. The UI can render this as hypothesis,
 conditions, metric deltas, and run links.
 
 ## Run Detail
 
 Use case: `DashboardReadService.run_detail(run_id)`
+
+HTTP: `GET /runs/{run_id}`
 
 ```json
 {
@@ -52,6 +60,8 @@ The timeline is the source of truth for agent behavior. Metrics are derived from
 
 Use case: `DashboardReadService.review_queue(limit=50)`
 
+HTTP: `GET /review-queue?limit=50`
+
 Shows draft claims and knowledge cards that are evidence-only until reviewed. The UI should make the
 review gate explicit: raw issue claims are not policy.
 
@@ -62,6 +72,8 @@ The agent-facing graph is already emitted in `brief.content.agent_dependency_gra
 separate human-only model.
 
 Use case: `DashboardReadService.evidence_graph(brief_id=...)`
+
+HTTP: `GET /briefs/{brief_id}/evidence-graph`
 
 ```json
 {
@@ -79,6 +91,8 @@ Use case: `DashboardReadService.evidence_graph(brief_id=...)`
 
 Use case: `DashboardReadService.review_actions(page_id)`
 
+HTTP: `GET /review-actions/{page_id}`
+
 For draft claims, the UI can show actions for:
 
 - accept/reject status change
@@ -88,3 +102,10 @@ For draft claims, the UI can show actions for:
 
 Review actions are command intents. The UI should call the review service/transport adapter rather
 than mutating wiki tables directly.
+
+HTTP command endpoints:
+
+- `POST /review-actions/{page_id}/status`
+- `POST /claims/{claim_id}/promote/knowledge`
+- `POST /claims/{claim_id}/promote/policy`
+- `POST /claims/{claim_id}/promote/intervention`
