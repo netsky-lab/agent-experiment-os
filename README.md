@@ -127,6 +127,25 @@ docker compose run --rm app uv run experiment-os experiments run-codex-version-t
   --sandbox danger-full-access
 ```
 
+Run the harder version-trap matrix with a stricter oracle:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-hard-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access
+```
+
+Progress events are written as JSONL to stderr. The final JSON includes the matrix summary and, by
+default, a markdown result artifact under `experiments/001-drizzle-brief/results/`.
+
+Run a model matrix by repeating `--model`:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-hard-matrix \
+  --model gpt-5.4-mini \
+  --model gpt-5.4
+```
+
 Register Experiment OS as a Codex MCP server:
 
 ```bash
@@ -185,3 +204,9 @@ The v0 backend is split by responsibility:
 - `src/experiment_os/cli.py` - developer CLI only.
 
 The MCP tools and CLI commands share the same service layer.
+
+## Experimental Fixtures
+
+- `fixtures/drizzle-version-trap-repo` - easy version trap, now mostly solved by current Codex.
+- `fixtures/drizzle-version-trap-hard-repo` - stricter Drizzle oracle with one correct schema edit.
+- `fixtures/python-api-drift-repo` - second-domain scaffold for Python SDK/API drift.

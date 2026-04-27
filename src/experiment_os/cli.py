@@ -352,11 +352,19 @@ def experiments_run_codex_mcp_version_trap(
 @experiments_app.command("run-codex-version-trap-matrix")
 def experiments_run_codex_version_trap_matrix(
     repeat_count: int = typer.Option(1, min=1, help="Number of repeats per condition."),
-    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    models: list[str] | None = typer.Option(
+        None,
+        "--model",
+        help="Optional Codex model override. Repeat to run a model matrix.",
+    ),
     sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
     approval_policy: str = typer.Option("never", help="Codex approval policy."),
     timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
     include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    write_result_artifact: bool = typer.Option(
+        True,
+        help="Write a markdown result artifact under the experiment results directory.",
+    ),
     fixture_path: Path = typer.Option(
         Path("fixtures/drizzle-version-trap-repo"),
         help="Fixture repo copied into disposable workdirs before running Codex.",
@@ -366,12 +374,51 @@ def experiments_run_codex_version_trap_matrix(
     with session_scope() as session:
         result = ExperimentMatrixRunner(session).run_version_trap_matrix(
             repeat_count=repeat_count,
-            model=model,
+            models=models,
             sandbox=sandbox,
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
             include_mcp=include_mcp,
+            write_result_artifact=write_result_artifact,
+            progress=lambda event: typer.echo(json.dumps(event), err=True),
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-codex-version-trap-hard-matrix")
+def experiments_run_codex_version_trap_hard_matrix(
+    repeat_count: int = typer.Option(1, min=1, help="Number of repeats per condition."),
+    models: list[str] | None = typer.Option(
+        None,
+        "--model",
+        help="Optional Codex model override. Repeat to run a model matrix.",
+    ),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
+    include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    write_result_artifact: bool = typer.Option(
+        True,
+        help="Write a markdown result artifact under the experiment results directory.",
+    ),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/drizzle-version-trap-hard-repo"),
+        help="Hard fixture repo copied into disposable workdirs before running Codex.",
+    ),
+) -> None:
+    """Run the harder version-trap matrix with a stricter oracle."""
+    with session_scope() as session:
+        result = ExperimentMatrixRunner(session).run_version_trap_matrix(
+            repeat_count=repeat_count,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+            include_mcp=include_mcp,
+            write_result_artifact=write_result_artifact,
+            progress=lambda event: typer.echo(json.dumps(event), err=True),
         )
     typer.echo(json.dumps(result, indent=2))
 

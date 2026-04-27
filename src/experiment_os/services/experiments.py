@@ -148,6 +148,7 @@ class ExperimentRunner:
             workdir=workdir,
             prompt=prompt,
             timeout_seconds=timeout_seconds,
+            model_name=model,
             run_metadata=run_metadata,
         )
 
@@ -302,6 +303,7 @@ class ExperimentRunner:
         workdir: Path,
         prompt: str | None,
         timeout_seconds: int,
+        model_name: str | None = None,
         run_metadata: dict | None = None,
     ) -> dict:
         SeedService(self._session).seed()
@@ -325,7 +327,7 @@ class ExperimentRunner:
                 task=f"Run {agent_name} agent condition",
                 repo=str(workdir),
                 agent=agent_name,
-                model=None,
+                model=model_name,
                 toolchain="shell",
                 metadata=metadata,
             )

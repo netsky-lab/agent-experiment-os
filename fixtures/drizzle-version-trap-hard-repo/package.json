@@ -1,0 +1,14 @@
+{
+  "name": "drizzle-version-trap-hard-repo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "node scripts/generate.js",
+    "test": "node scripts/test.js"
+  },
+  "dependencies": {
+    "drizzle-kit": "0.31.1",
+    "drizzle-orm": "1.0.0-beta.22"
+  }
+}

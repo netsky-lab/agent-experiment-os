@@ -115,10 +115,14 @@ This is not yet a general result:
 
 ## Next Experiment
 
-Run `run-codex-version-trap-matrix` with repeated conditions:
+The first matrix showed that `fixtures/drizzle-version-trap-repo` is too easy. The next run should
+use `fixtures/drizzle-version-trap-hard-repo`, where validation fails until the agent makes one
+small schema edit and the oracle rejects dependency upgrades, migration rewrites, and harness edits.
+
+Run `run-codex-version-trap-hard-matrix` with repeated conditions:
 
 ```bash
-docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-matrix \
+docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-hard-matrix \
   --repeat-count 3 \
   --sandbox danger-full-access
 ```
@@ -129,3 +133,6 @@ The next decision threshold:
 - MCP/static brief do not edit verification harness files;
 - baseline shows more wrong-file or unsupported dependency edits;
 - generated policy candidates stay in review until accepted by a human.
+
+The second-domain scaffold is `fixtures/python-api-drift-repo`; it will become the next matrix after
+the hard Drizzle fixture produces a usable behavioral contrast.

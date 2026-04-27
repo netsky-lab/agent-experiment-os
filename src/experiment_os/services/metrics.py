@@ -39,7 +39,8 @@ class MetricsExtractor:
                 migration_inspection_indices, first_edit_index
             ),
             "tests_run": len(test_runs),
-            "tests_passing": any(event.payload.get("passed") is True for event in test_runs),
+            "tests_passing": any(event.payload.get("passed") is True for event in test_runs)
+            and not any(event.payload.get("passed") is False for event in test_runs),
             "failure_count": len(failures),
             "intervention_count": len(interventions),
             "file_edit_count": len(edits),
@@ -163,6 +164,8 @@ def _mcp_dependency_before_edit(events: list[RunEvent]) -> bool:
         if event.event_type == "file_edited":
             return False
         if event.event_type != "mcp_tool_called":
+            continue
+        if event.payload.get("server") != "experiment_os":
             continue
         if event.payload.get("tool") in {
             "start_pre_work_protocol",

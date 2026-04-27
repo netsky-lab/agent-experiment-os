@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -31,57 +33,102 @@ class ExperimentMatrixRunner:
         *,
         repeat_count: int = 1,
         model: str | None = None,
+        models: list[str | None] | None = None,
         sandbox: str = "workspace-write",
         approval_policy: str = "never",
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/drizzle-version-trap-repo"),
         include_mcp: bool = True,
+        progress: Callable[[dict], None] | None = None,
+        write_result_artifact: bool = False,
+        result_dir: Path = Path("experiments/001-drizzle-brief/results"),
     ) -> dict:
         if repeat_count < 1:
             raise ValueError("repeat_count must be at least 1")
 
         matrix_id = f"matrix.version-trap.{uuid4().hex[:12]}"
+        matrix_models = _matrix_models(model=model, models=models)
         conditions = _version_trap_conditions(include_mcp=include_mcp)
         runs: list[dict] = []
 
-        for repeat_index in range(repeat_count):
-            for condition in conditions:
-                run_metadata = {
-                    "matrix_id": matrix_id,
-                    "matrix_kind": "version_trap",
-                    "matrix_condition": condition.id,
-                    "matrix_repeat_index": repeat_index,
-                    "mcp_enabled": condition.mcp_enabled,
-                }
-                if condition.mcp_enabled:
-                    run = self._runner.run_codex_mcp_aware_version_trap(
-                        condition_id=condition.condition_id,
-                        model=model,
-                        sandbox=sandbox,
-                        approval_policy=approval_policy,
-                        timeout_seconds=timeout_seconds,
-                        fixture_path=fixture_path,
-                        run_metadata=run_metadata,
-                    )
-                else:
-                    run = self._runner.run_codex_toy_fixture(
-                        condition_id=condition.condition_id,
-                        prompt=condition.prompt,
-                        model=model,
-                        sandbox=sandbox,
-                        approval_policy=approval_policy,
-                        timeout_seconds=timeout_seconds,
-                        fixture_path=fixture_path,
-                        run_metadata=run_metadata,
-                    )
-                runs.append(
-                    {
+        _emit_progress(
+            progress,
+            {
+                "event": "matrix_started",
+                "matrix_id": matrix_id,
+                "repeat_count": repeat_count,
+                "conditions": [condition.id for condition in conditions],
+                "models": [_model_label(item) for item in matrix_models],
+            },
+        )
+
+        for model_value in matrix_models:
+            model_label = _model_label(model_value)
+            for repeat_index in range(repeat_count):
+                for condition in conditions:
+                    run_metadata = {
+                        "matrix_id": matrix_id,
+                        "matrix_kind": "version_trap",
                         "matrix_condition": condition.id,
-                        "repeat_index": repeat_index,
+                        "matrix_model": model_label,
+                        "matrix_repeat_index": repeat_index,
                         "mcp_enabled": condition.mcp_enabled,
-                        "run": run,
                     }
-                )
+                    _emit_progress(
+                        progress,
+                        {
+                            "event": "run_started",
+                            "matrix_id": matrix_id,
+                            "condition": condition.id,
+                            "repeat_index": repeat_index,
+                            "model": model_label,
+                            "mcp_enabled": condition.mcp_enabled,
+                        },
+                    )
+                    if condition.mcp_enabled:
+                        run = self._runner.run_codex_mcp_aware_version_trap(
+                            condition_id=condition.condition_id,
+                            model=model_value,
+                            sandbox=sandbox,
+                            approval_policy=approval_policy,
+                            timeout_seconds=timeout_seconds,
+                            fixture_path=fixture_path,
+                            run_metadata=run_metadata,
+                        )
+                    else:
+                        run = self._runner.run_codex_toy_fixture(
+                            condition_id=condition.condition_id,
+                            prompt=condition.prompt,
+                            model=model_value,
+                            sandbox=sandbox,
+                            approval_policy=approval_policy,
+                            timeout_seconds=timeout_seconds,
+                            fixture_path=fixture_path,
+                            run_metadata=run_metadata,
+                        )
+                    runs.append(
+                        {
+                            "matrix_condition": condition.id,
+                            "repeat_index": repeat_index,
+                            "model": model_label,
+                            "mcp_enabled": condition.mcp_enabled,
+                            "run": run,
+                        }
+                    )
+                    _emit_progress(
+                        progress,
+                        {
+                            "event": "run_finished",
+                            "matrix_id": matrix_id,
+                            "condition": condition.id,
+                            "repeat_index": repeat_index,
+                            "model": model_label,
+                            "run_id": run["run"]["run_id"],
+                            "exit_code": run["execution"]["exit_code"],
+                            "duration_seconds": run["execution"]["duration_seconds"],
+                            "metrics": _progress_metrics(run["metrics"]),
+                        },
+                    )
 
         report = {
             "matrix_id": matrix_id,
@@ -89,6 +136,7 @@ class ExperimentMatrixRunner:
             "matrix_kind": "version_trap",
             "repeat_count": repeat_count,
             "fixture_path": str(fixture_path),
+            "models": [_model_label(item) for item in matrix_models],
             "conditions": [
                 {
                     "id": condition.id,
@@ -99,8 +147,20 @@ class ExperimentMatrixRunner:
             ],
             "runs": runs,
             "summary": _matrix_summary(runs),
+            "summary_by_model": _matrix_summary_by_model(runs),
         }
         report["policy_candidates"] = self._policy_candidates_from_matrix(report)
+        if write_result_artifact:
+            report["result_artifact"] = str(_write_matrix_result(report, result_dir=result_dir))
+        _emit_progress(
+            progress,
+            {
+                "event": "matrix_finished",
+                "matrix_id": matrix_id,
+                "run_count": len(runs),
+                "result_artifact": report.get("result_artifact"),
+            },
+        )
         return report
 
     def _policy_candidates_from_matrix(self, matrix_report: dict) -> list[dict]:
@@ -175,6 +235,16 @@ def _matrix_summary(runs: list[dict]) -> dict:
     }
 
 
+def _matrix_summary_by_model(runs: list[dict]) -> dict:
+    by_model: dict[str, list[dict]] = {}
+    for item in runs:
+        by_model.setdefault(item["model"], []).append(item)
+    return {
+        model: _matrix_summary(model_runs)
+        for model, model_runs in sorted(by_model.items())
+    }
+
+
 def _aggregate_metrics(metrics_list: list[dict]) -> dict:
     if not metrics_list:
         return {}
@@ -198,6 +268,129 @@ def _aggregate_metrics(metrics_list: list[dict]) -> dict:
                 "max": max(values) if values else None,
             }
     return aggregate
+
+
+def _matrix_models(
+    *,
+    model: str | None,
+    models: list[str | None] | None,
+) -> list[str | None]:
+    if models:
+        return [item if item else None for item in models]
+    return [model]
+
+
+def _model_label(model: str | None) -> str:
+    return model or "codex-default"
+
+
+def _emit_progress(progress: Callable[[dict], None] | None, event: dict) -> None:
+    if progress is not None:
+        progress(event)
+
+
+def _progress_metrics(metrics: dict) -> dict:
+    keys = [
+        "tests_passing",
+        "dependency_changed",
+        "rewrote_migration_history",
+        "wrong_file_edits",
+        "file_edit_count",
+        "mcp_pre_work_protocol_called",
+        "mcp_tool_call_count",
+    ]
+    return {key: metrics.get(key) for key in keys if key in metrics}
+
+
+def _write_matrix_result(matrix_report: dict, *, result_dir: Path) -> Path:
+    result_dir.mkdir(parents=True, exist_ok=True)
+    date = datetime.now(UTC).date().isoformat()
+    slug = matrix_report["matrix_id"].replace(".", "-")
+    path = result_dir / f"{date}-{slug}.md"
+    path.write_text(_matrix_markdown(matrix_report), encoding="utf-8")
+    return path
+
+
+def _matrix_markdown(matrix_report: dict) -> str:
+    lines = [
+        "# Codex Version-Trap Matrix",
+        "",
+        f"Date: {datetime.now(UTC).date().isoformat()}",
+        "",
+        f"Matrix id: `{matrix_report['matrix_id']}`",
+        "",
+        f"Fixture: `{matrix_report['fixture_path']}`",
+        "",
+        f"Repeat count: `{matrix_report['repeat_count']}`",
+        "",
+        "Models: "
+        + ", ".join(f"`{model}`" for model in matrix_report.get("models", [])),
+        "",
+        "## Runs",
+        "",
+        "| Model | Repeat | Condition | Run | Exit | Duration |",
+        "| --- | ---: | --- | --- | ---: | ---: |",
+    ]
+    for item in matrix_report["runs"]:
+        run = item["run"]
+        lines.append(
+            (
+                "| {model} | {repeat} | {condition} | `{run_id}` | "
+                "{exit_code} | {duration:.2f}s |"
+            ).format(
+                model=item["model"],
+                repeat=item["repeat_index"],
+                condition=item["matrix_condition"],
+                run_id=run["run"]["run_id"],
+                exit_code=run["execution"]["exit_code"],
+                duration=run["execution"]["duration_seconds"],
+            )
+        )
+
+    lines.extend(["", "## Summary", ""])
+    for condition, summary in matrix_report["summary"].items():
+        metrics = summary["metrics"]
+        lines.extend(
+            [
+                f"### {condition}",
+                "",
+                f"- run count: `{summary['run_count']}`",
+                f"- tests passing rate: `{_rate(metrics, 'tests_passing')}`",
+                f"- dependency change rate: `{_rate(metrics, 'dependency_changed')}`",
+                f"- file edit mean: `{_mean(metrics, 'file_edit_count')}`",
+                f"- wrong-file edit mean: `{_mean(metrics, 'wrong_file_edits')}`",
+                f"- MCP pre-work rate: `{_rate(metrics, 'mcp_pre_work_protocol_called')}`",
+                f"- MCP call mean: `{_mean(metrics, 'mcp_tool_call_count')}`",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "## Interpretation Scaffold",
+            "",
+            "- Did baseline produce a negative safety signal?",
+            "- Did static brief or MCP brief reduce dependency, migration, or wrong-file edits?",
+            "- Did MCP condition load dependencies before editing?",
+            "- Should a policy candidate remain draft, be promoted, or be rejected?",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _rate(metrics: dict, key: str) -> str:
+    value = metrics.get(key, {})
+    if not isinstance(value, dict) or "rate" not in value:
+        return "n/a"
+    return f"{value['rate']:.2f}"
+
+
+def _mean(metrics: dict, key: str) -> str:
+    value = metrics.get(key, {})
+    if not isinstance(value, dict) or "mean" not in value:
+        return "n/a"
+    return f"{value['mean']:.2f}"
 
 
 def _comparison_payload(

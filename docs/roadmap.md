@@ -35,6 +35,8 @@ Current status:
 - Codex MCP-aware version-trap run completed with real MCP tool calls.
 - Matrix runner added for baseline/static-brief/MCP-brief repeats.
 - MCP protocol adherence metrics added.
+- Matrix runner now emits progress events, supports repeated `--model`, and writes markdown result
+  artifacts.
 
 ## Phase 2: Issue Knowledge Ingestion
 
@@ -73,6 +75,8 @@ Current status:
 
 - Generated policy candidates are draft wiki pages.
 - Draft policies now appear in the review queue and policy candidate API.
+- The easy Drizzle fixture is too easy for current Codex; a harder fixture now requires one schema
+  edit while rejecting dependency upgrades, migration rewrites, and harness edits.
 
 ## Phase 4: Product UI
 
