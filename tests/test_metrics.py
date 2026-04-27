@@ -89,6 +89,13 @@ def test_metrics_detect_mcp_pre_work_protocol(session):
         RunEventInput(
             run_id=run["run_id"],
             event_type="mcp_tool_called",
+            payload={"tool": "list_mcp_resources", "server": "codex"},
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="mcp_tool_called",
             payload={"tool": "start_pre_work_protocol", "server": "experiment_os"},
         )
     )

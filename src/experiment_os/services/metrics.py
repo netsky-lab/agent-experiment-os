@@ -20,7 +20,12 @@ class MetricsExtractor:
         failures = [event for event in events if event.event_type == "failure_observed"]
         interventions = [event for event in events if event.event_type == "intervention_applied"]
         edits = [event for event in events if event.event_type == "file_edited"]
-        mcp_calls = [event for event in events if event.event_type == "mcp_tool_called"]
+        mcp_calls = [
+            event
+            for event in events
+            if event.event_type == "mcp_tool_called"
+            and event.payload.get("server") == "experiment_os"
+        ]
         dependency_edits = [event for event in edits if _looks_like_dependency_edit(event.payload)]
         migration_edits = [event for event in edits if _looks_like_migration_edit(event.payload)]
         local_drizzle_kit_version = _checked_version(events, "drizzle-kit")
