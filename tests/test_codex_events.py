@@ -5,7 +5,7 @@ def test_codex_jsonl_extractor_reads_structured_events():
     jsonl = """
 {"type":"exec_command.begin","cmd":"cat package.json && rg migration drizzle/migrations"}
 {"type":"agent_message","message":"drizzle-orm@1.0.0-beta.22"}
-{"type":"exec_command.end","cmd":"npm run db:generate","output":"passed"}
+{"type":"exec_command.end","cmd":"npm run db:generate","output":"passed","exit_code":0}
 {"type":"file_change","summary":"modified src/db/schema.ts"}
 {"type":"error","message":"tool call failed after retry"}
 """

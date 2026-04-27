@@ -245,7 +245,7 @@ class ExperimentRunner:
                     metadata={"brief_id": brief["brief_id"]},
                 )
             )
-            env["EXPERIMENT_OS_BRIEF_PATH"] = str(brief_path)
+            env["EXPERIMENT_OS_BRIEF_PATH"] = str(brief_path.resolve())
             if effective_prompt:
                 effective_prompt = f"{brief_prompt}\n\n# User Task\n\n{effective_prompt}"
             else:
@@ -503,12 +503,18 @@ def _extract_execution_events(
     agent_name: str,
     execution: AgentExecutionResult,
 ) -> list[RunEventInput]:
-    events = TranscriptEventExtractor().extract(
-        run_id=run_id,
-        transcript=execution.transcript,
-    )
     if agent_name == "codex":
-        events.extend(CodexJsonlEventExtractor().extract(run_id=run_id, jsonl=execution.stdout))
+        events = CodexJsonlEventExtractor().extract(run_id=run_id, jsonl=execution.stdout)
+        if not events:
+            events = TranscriptEventExtractor().extract(
+                run_id=run_id,
+                transcript=execution.transcript,
+            )
+    else:
+        events = TranscriptEventExtractor().extract(
+            run_id=run_id,
+            transcript=execution.transcript,
+        )
     return _dedupe_event_inputs(events)
 
 

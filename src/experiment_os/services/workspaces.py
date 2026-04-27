@@ -2,10 +2,16 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
+from experiment_os.artifacts import writable_root
+
 
 class FixtureWorkspacePreparer:
-    def __init__(self, root: Path = Path("artifacts/workdirs")) -> None:
-        self._root = root
+    def __init__(
+        self,
+        root: Path = Path("artifacts/workdirs"),
+        fallback_root: Path = Path("runs/workdirs"),
+    ) -> None:
+        self._root = writable_root(root, fallback_root)
 
     def prepare(self, *, fixture_path: Path, label: str) -> Path:
         if not fixture_path.exists():

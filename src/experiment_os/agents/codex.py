@@ -51,14 +51,18 @@ class CodexCliAdapter:
     def _build_args(self, workdir: Path) -> list[str]:
         args = [
             self._options.binary,
-            "exec",
-            "--cd",
-            str(workdir),
-            "--sandbox",
-            self._options.sandbox,
-            "--ask-for-approval",
-            self._options.approval_policy,
         ]
+        if self._options.approval_policy:
+            args.extend(["--ask-for-approval", self._options.approval_policy])
+        args.extend(
+            [
+                "exec",
+                "--cd",
+                str(workdir.resolve()),
+                "--sandbox",
+                self._options.sandbox,
+            ]
+        )
         if self._options.skip_git_repo_check:
             args.append("--skip-git-repo-check")
         if self._options.json_events:
