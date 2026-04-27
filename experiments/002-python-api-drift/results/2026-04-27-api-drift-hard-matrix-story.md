@@ -60,3 +60,11 @@ The next implementation should treat MCP as a contract boundary:
 - missing MCP pre-work marks the run non-compliant;
 - post-run memory capture is explicit;
 - dashboard read models show task success separately from protocol compliance.
+
+## Follow-up Result
+
+The adapter gate was implemented and re-run as `matrix.api-drift.1cfd4a3ee915`.
+Both Codex and OpenCode gated conditions reached `1.00` pre-work compliance while preserving the
+same final task success pattern. The useful product claim is now narrower and stronger:
+Experiment OS should enforce memory loading at the adapter boundary, then show task success and
+protocol compliance as separate dimensions.

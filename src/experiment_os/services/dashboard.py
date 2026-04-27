@@ -199,23 +199,27 @@ def _matrix_projection(matrix_id: str, results: list) -> dict[str, Any]:
         "run_count": len(results),
         "latest_result_created_at": _latest_result_created_at(results),
         "conditions": {
-            condition: {
-                "run_count": len(condition_results),
-                "runs": [
-                    {
-                        "result_id": result.id,
-                        "run_id": result.run_id,
-                        "metrics": result.metrics,
-                        "created_at": (
-                            result.created_at.isoformat() if result.created_at else None
-                        ),
-                    }
-                    for result in condition_results
-                ],
-                "metrics": _aggregate_metrics([result.metrics for result in condition_results]),
-            }
+            condition: _condition_projection(condition_results)
             for condition, condition_results in sorted(by_condition.items())
         },
+    }
+
+
+def _condition_projection(condition_results: list) -> dict[str, Any]:
+    metrics = _aggregate_metrics([result.metrics for result in condition_results])
+    return {
+        "run_count": len(condition_results),
+        "runs": [
+            {
+                "result_id": result.id,
+                "run_id": result.run_id,
+                "metrics": result.metrics,
+                "created_at": result.created_at.isoformat() if result.created_at else None,
+            }
+            for result in condition_results
+        ],
+        "metrics": metrics,
+        "protocol_compliance": _protocol_compliance(metrics),
     }
 
 
@@ -253,3 +257,20 @@ def _latest_result_created_at(results: list) -> str | None:
     if not timestamps:
         return None
     return max(timestamps).isoformat()
+
+
+def _protocol_compliance(metrics: dict[str, dict]) -> dict[str, Any]:
+    return {
+        "pre_work_rate": _metric_rate(metrics, "mcp_pre_work_protocol_called"),
+        "dependency_graph_rate": _metric_rate(metrics, "mcp_dependency_graph_loaded"),
+        "final_answer_rate": _metric_rate(metrics, "mcp_final_answer_recorded"),
+        "summary_rate": _metric_rate(metrics, "mcp_summary_requested"),
+    }
+
+
+def _metric_rate(metrics: dict[str, dict], key: str) -> float | None:
+    value = metrics.get(key)
+    if not isinstance(value, dict):
+        return None
+    rate = value.get("rate")
+    return float(rate) if isinstance(rate, int | float) else None

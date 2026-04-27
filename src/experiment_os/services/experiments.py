@@ -9,6 +9,8 @@ from experiment_os.agents import (
     AgentRunRequest,
     CodexCliAdapter,
     CodexCliOptions,
+    OpenCodeCliAdapter,
+    OpenCodeCliOptions,
     ShellAgentAdapter,
 )
 from experiment_os.artifacts import ArtifactStore
@@ -34,6 +36,7 @@ from experiment_os.prompts import (
 from experiment_os.repositories.experiments import ExperimentRepository
 from experiment_os.repositories.runs import RunRepository
 from experiment_os.services.briefs import BriefCompiler
+from experiment_os.services.agent_prework import AgentPreWorkGate
 from experiment_os.services.codex_events import CodexJsonlEventExtractor
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.experiment_reports import ExperimentReportGenerator
@@ -174,6 +177,7 @@ class ExperimentRunner:
         run_metadata: dict | None = None,
         brief_task: str | None = None,
         brief_libraries: list[str] | None = None,
+        pre_work_gate: bool = False,
     ) -> dict:
         return self._run_agent_condition(
             condition_id=condition_id,
@@ -194,6 +198,41 @@ class ExperimentRunner:
             run_metadata=run_metadata,
             brief_task=brief_task,
             brief_libraries=brief_libraries,
+            pre_work_gate=pre_work_gate,
+        )
+
+    def run_opencode_condition(
+        self,
+        *,
+        condition_id: str,
+        prompt: str,
+        workdir: Path,
+        model: str | None = None,
+        timeout_seconds: int = 900,
+        run_metadata: dict | None = None,
+        brief_task: str | None = None,
+        brief_libraries: list[str] | None = None,
+        pre_work_gate: bool = True,
+        dangerously_skip_permissions: bool = True,
+    ) -> dict:
+        return self._run_agent_condition(
+            condition_id=condition_id,
+            adapter=OpenCodeCliAdapter(
+                OpenCodeCliOptions(
+                    model=model,
+                    dangerously_skip_permissions=dangerously_skip_permissions,
+                )
+            ),
+            agent_name="opencode",
+            command="opencode run",
+            workdir=workdir,
+            prompt=prompt,
+            timeout_seconds=timeout_seconds,
+            model_name=model,
+            run_metadata=run_metadata,
+            brief_task=brief_task,
+            brief_libraries=brief_libraries,
+            pre_work_gate=pre_work_gate,
         )
 
     def run_codex_toy_fixture(
@@ -207,6 +246,7 @@ class ExperimentRunner:
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/drizzle-toy-repo"),
         run_metadata: dict | None = None,
+        pre_work_gate: bool = False,
     ) -> dict:
         workdir = FixtureWorkspacePreparer().prepare(
             fixture_path=fixture_path,
@@ -221,6 +261,7 @@ class ExperimentRunner:
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
             run_metadata=run_metadata,
+            pre_work_gate=pre_work_gate,
         )
 
     def run_codex_toy_comparison(
@@ -311,6 +352,7 @@ class ExperimentRunner:
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/python-api-drift-repo"),
         run_metadata: dict | None = None,
+        pre_work_gate: bool = False,
     ) -> dict:
         workdir = FixtureWorkspacePreparer().prepare(
             fixture_path=fixture_path,
@@ -327,6 +369,36 @@ class ExperimentRunner:
             run_metadata=run_metadata,
             brief_task="Fix a Python SDK/API drift wrapper issue",
             brief_libraries=["example-llm-sdk", "python"],
+            pre_work_gate=pre_work_gate,
+        )
+
+    def run_opencode_api_drift(
+        self,
+        *,
+        condition_id: str = "condition.002-api-drift-brief-assisted",
+        prompt: str | None = None,
+        model: str | None = None,
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/python-api-drift-repo"),
+        run_metadata: dict | None = None,
+        pre_work_gate: bool = True,
+        dangerously_skip_permissions: bool = True,
+    ) -> dict:
+        workdir = FixtureWorkspacePreparer().prepare(
+            fixture_path=fixture_path,
+            label=f"{condition_id}-opencode",
+        )
+        return self.run_opencode_condition(
+            condition_id=condition_id,
+            prompt=prompt or CODEX_API_DRIFT_PROMPT,
+            workdir=workdir,
+            model=model,
+            timeout_seconds=timeout_seconds,
+            run_metadata=run_metadata,
+            brief_task="Fix a Python SDK/API drift wrapper issue",
+            brief_libraries=["example-llm-sdk", "python"],
+            pre_work_gate=pre_work_gate,
+            dangerously_skip_permissions=dangerously_skip_permissions,
         )
 
     def run_codex_mcp_aware_api_drift(
@@ -409,6 +481,7 @@ class ExperimentRunner:
         run_metadata: dict | None = None,
         brief_task: str | None = None,
         brief_libraries: list[str] | None = None,
+        pre_work_gate: bool = False,
     ) -> dict:
         self._seed_all()
 
@@ -438,7 +511,23 @@ class ExperimentRunner:
         env: dict[str, str] = {}
         effective_prompt = prompt
 
-        if condition.config.get("brief_required"):
+        gate = AgentPreWorkGate(self._session) if pre_work_gate else None
+        if condition.config.get("brief_required") and gate is not None:
+            pre_work = gate.prepare(
+                run_id=run["run_id"],
+                request=BriefRequest(
+                    task=brief_task or f"Run {agent_name} agent condition",
+                    repo=str(workdir),
+                    libraries=brief_libraries or ["drizzle", "drizzle-orm"],
+                    agent=agent_name,
+                    model=model_name,
+                    toolchain="shell",
+                ),
+                base_prompt=effective_prompt,
+            )
+            env.update(pre_work.env)
+            effective_prompt = pre_work.prompt
+        elif condition.config.get("brief_required"):
             brief = BriefCompiler(self._session).compile(
                 BriefRequest(
                     task=brief_task or f"Run {agent_name} agent condition",
@@ -526,6 +615,12 @@ class ExperimentRunner:
             execution=execution,
         ):
             self._recorder.record_event(event)
+        if gate is not None:
+            gate.complete(
+                run_id=run["run_id"],
+                stdout=execution.stdout,
+                stderr=execution.stderr,
+            )
 
         events = self._runs.list_events(run["run_id"])
         metrics = MetricsExtractor().extract(events)

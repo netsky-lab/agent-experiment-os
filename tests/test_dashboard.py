@@ -40,6 +40,7 @@ def test_dashboard_exposes_matrix_projection(session, tmp_path):
 
     assert "matrix.test" in matrices
     assert "static_brief" in matrices["matrix.test"]["conditions"]
+    assert "protocol_compliance" in matrices["matrix.test"]["conditions"]["static_brief"]
     assert latest["matrix"]["matrix_id"] == "matrix.test"
     assert latest["matrix"]["run_count"] >= 1
 

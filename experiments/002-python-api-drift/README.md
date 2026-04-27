@@ -49,9 +49,23 @@ docker compose run --rm app uv run experiment-os experiments run-codex-api-drift
   --approval-policy never
 ```
 
+Adapter-gated hard fixture variant:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-matrix \
+  --fixture-path fixtures/python-api-drift-hard-repo \
+  --repeat-count 1 \
+  --sandbox danger-full-access \
+  --approval-policy never \
+  --include-gated \
+  --include-opencode
+```
+
 Expected comparison:
 
 - baseline may solve the narrow fixture, but has no explicit evidence boundary;
 - static brief should push local shim inspection before editing;
 - MCP brief should record pre-work protocol, dependency loading, local API surface checks, and final
   verification as first-class run memory.
+- gated brief should prove whether protocol compliance changes when pre-work is enforced outside
+  the agent prompt.

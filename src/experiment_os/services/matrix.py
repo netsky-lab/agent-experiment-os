@@ -28,6 +28,8 @@ class MatrixCondition:
     condition_id: str
     prompt: str
     mcp_enabled: bool
+    pre_work_gate: bool = False
+    agent_backend: str = "codex"
 
 
 class ExperimentMatrixRunner:
@@ -46,6 +48,7 @@ class ExperimentMatrixRunner:
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/drizzle-version-trap-repo"),
         include_mcp: bool = True,
+        include_gated: bool = False,
         progress: Callable[[dict], None] | None = None,
         write_result_artifact: bool = False,
         result_dir: Path = Path("experiments/001-drizzle-brief/results"),
@@ -59,7 +62,10 @@ class ExperimentMatrixRunner:
             sandbox=sandbox,
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
-            conditions=_version_trap_conditions(include_mcp=include_mcp),
+            conditions=_version_trap_conditions(
+                include_mcp=include_mcp,
+                include_gated=include_gated,
+            ),
             progress=progress,
             write_result_artifact=write_result_artifact,
             result_dir=result_dir,
@@ -76,6 +82,8 @@ class ExperimentMatrixRunner:
         timeout_seconds: int = 900,
         fixture_path: Path = Path("fixtures/python-api-drift-repo"),
         include_mcp: bool = True,
+        include_gated: bool = False,
+        include_opencode: bool = False,
         progress: Callable[[dict], None] | None = None,
         write_result_artifact: bool = False,
         result_dir: Path = Path("experiments/002-python-api-drift/results"),
@@ -89,7 +97,11 @@ class ExperimentMatrixRunner:
             sandbox=sandbox,
             approval_policy=approval_policy,
             timeout_seconds=timeout_seconds,
-            conditions=_api_drift_conditions(include_mcp=include_mcp),
+            conditions=_api_drift_conditions(
+                include_mcp=include_mcp,
+                include_gated=include_gated,
+                include_opencode=include_opencode,
+            ),
             progress=progress,
             write_result_artifact=write_result_artifact,
             result_dir=result_dir,
@@ -140,6 +152,8 @@ class ExperimentMatrixRunner:
                         "matrix_model": model_label,
                         "matrix_repeat_index": repeat_index,
                         "mcp_enabled": condition.mcp_enabled,
+                        "pre_work_gate": condition.pre_work_gate,
+                        "agent_backend": condition.agent_backend,
                     }
                     _emit_progress(
                         progress,
@@ -150,6 +164,8 @@ class ExperimentMatrixRunner:
                             "repeat_index": repeat_index,
                             "model": model_label,
                             "mcp_enabled": condition.mcp_enabled,
+                            "pre_work_gate": condition.pre_work_gate,
+                            "agent_backend": condition.agent_backend,
                         },
                     )
                     if condition.mcp_enabled:
@@ -180,6 +196,8 @@ class ExperimentMatrixRunner:
                             "repeat_index": repeat_index,
                             "model": model_label,
                             "mcp_enabled": condition.mcp_enabled,
+                            "pre_work_gate": condition.pre_work_gate,
+                            "agent_backend": condition.agent_backend,
                             "run": run,
                         }
                     )
@@ -210,6 +228,8 @@ class ExperimentMatrixRunner:
                     "id": condition.id,
                     "condition_id": condition.condition_id,
                     "mcp_enabled": condition.mcp_enabled,
+                    "pre_work_gate": condition.pre_work_gate,
+                    "agent_backend": condition.agent_backend,
                 }
                 for condition in conditions
             ],
@@ -243,6 +263,18 @@ class ExperimentMatrixRunner:
         fixture_path: Path,
         run_metadata: dict,
     ) -> dict:
+        if condition.agent_backend == "opencode":
+            if matrix_kind != "api_drift":
+                raise ValueError("OpenCode matrix conditions are only implemented for api_drift")
+            return self._runner.run_opencode_api_drift(
+                condition_id=condition.condition_id,
+                prompt=condition.prompt,
+                model=model,
+                timeout_seconds=timeout_seconds,
+                fixture_path=fixture_path,
+                run_metadata=run_metadata,
+                pre_work_gate=condition.pre_work_gate,
+            )
         if matrix_kind == "api_drift":
             return self._runner.run_codex_api_drift(
                 condition_id=condition.condition_id,
@@ -253,6 +285,7 @@ class ExperimentMatrixRunner:
                 timeout_seconds=timeout_seconds,
                 fixture_path=fixture_path,
                 run_metadata=run_metadata,
+                pre_work_gate=condition.pre_work_gate,
             )
         return self._runner.run_codex_toy_fixture(
             condition_id=condition.condition_id,
@@ -263,6 +296,7 @@ class ExperimentMatrixRunner:
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
             run_metadata=run_metadata,
+            pre_work_gate=condition.pre_work_gate,
         )
 
     def _run_mcp_condition(
@@ -303,6 +337,10 @@ class ExperimentMatrixRunner:
         protocol_candidate = service.propose_from_mcp_protocol_gap(matrix_report)
         if protocol_candidate is not None:
             candidates.append(protocol_candidate)
+        for item in matrix_report["runs"]:
+            run_candidate = service.propose_from_run_summary(item["run"])
+            if run_candidate is not None:
+                candidates.append(run_candidate)
 
         if matrix_report["matrix_kind"] != "version_trap":
             return candidates
@@ -335,7 +373,7 @@ class ExperimentMatrixRunner:
         return candidates
 
 
-def _version_trap_conditions(*, include_mcp: bool) -> list[MatrixCondition]:
+def _version_trap_conditions(*, include_mcp: bool, include_gated: bool) -> list[MatrixCondition]:
     conditions = [
         MatrixCondition(
             id="baseline",
@@ -359,10 +397,25 @@ def _version_trap_conditions(*, include_mcp: bool) -> list[MatrixCondition]:
                 mcp_enabled=True,
             )
         )
+    if include_gated:
+        conditions.append(
+            MatrixCondition(
+                id="gated_brief",
+                condition_id="condition.001-drizzle-brief-assisted",
+                prompt=CODEX_VERSION_TRAP_PROMPT,
+                mcp_enabled=False,
+                pre_work_gate=True,
+            )
+        )
     return conditions
 
 
-def _api_drift_conditions(*, include_mcp: bool) -> list[MatrixCondition]:
+def _api_drift_conditions(
+    *,
+    include_mcp: bool,
+    include_gated: bool,
+    include_opencode: bool,
+) -> list[MatrixCondition]:
     conditions = [
         MatrixCondition(
             id="baseline",
@@ -384,6 +437,27 @@ def _api_drift_conditions(*, include_mcp: bool) -> list[MatrixCondition]:
                 condition_id="condition.002-api-drift-brief-assisted",
                 prompt=CODEX_MCP_AWARE_API_DRIFT_PROMPT,
                 mcp_enabled=True,
+            )
+        )
+    if include_gated:
+        conditions.append(
+            MatrixCondition(
+                id="gated_brief",
+                condition_id="condition.002-api-drift-brief-assisted",
+                prompt=CODEX_API_DRIFT_PROMPT,
+                mcp_enabled=False,
+                pre_work_gate=True,
+            )
+        )
+    if include_opencode:
+        conditions.append(
+            MatrixCondition(
+                id="opencode_gated_brief",
+                condition_id="condition.002-api-drift-brief-assisted",
+                prompt=CODEX_API_DRIFT_PROMPT,
+                mcp_enabled=False,
+                pre_work_gate=True,
+                agent_backend="opencode",
             )
         )
     return conditions

@@ -361,6 +361,7 @@ def experiments_run_codex_version_trap_matrix(
     approval_policy: str = typer.Option("never", help="Codex approval policy."),
     timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
     include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    include_gated: bool = typer.Option(False, help="Include the adapter-gated brief condition."),
     write_result_artifact: bool = typer.Option(
         True,
         help="Write a markdown result artifact under the experiment results directory.",
@@ -380,6 +381,7 @@ def experiments_run_codex_version_trap_matrix(
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
             include_mcp=include_mcp,
+            include_gated=include_gated,
             write_result_artifact=write_result_artifact,
             progress=lambda event: typer.echo(json.dumps(event), err=True),
         )
@@ -398,6 +400,7 @@ def experiments_run_codex_version_trap_hard_matrix(
     approval_policy: str = typer.Option("never", help="Codex approval policy."),
     timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
     include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    include_gated: bool = typer.Option(False, help="Include the adapter-gated brief condition."),
     write_result_artifact: bool = typer.Option(
         True,
         help="Write a markdown result artifact under the experiment results directory.",
@@ -417,6 +420,7 @@ def experiments_run_codex_version_trap_hard_matrix(
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
             include_mcp=include_mcp,
+            include_gated=include_gated,
             write_result_artifact=write_result_artifact,
             progress=lambda event: typer.echo(json.dumps(event), err=True),
         )
@@ -435,6 +439,8 @@ def experiments_run_codex_api_drift_matrix(
     approval_policy: str = typer.Option("never", help="Codex approval policy."),
     timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
     include_mcp: bool = typer.Option(True, help="Include the MCP-aware condition."),
+    include_gated: bool = typer.Option(False, help="Include the adapter-gated Codex condition."),
+    include_opencode: bool = typer.Option(False, help="Include adapter-gated OpenCode condition."),
     write_result_artifact: bool = typer.Option(
         True,
         help="Write a markdown result artifact under the experiment results directory.",
@@ -454,6 +460,8 @@ def experiments_run_codex_api_drift_matrix(
             timeout_seconds=timeout_seconds,
             fixture_path=fixture_path,
             include_mcp=include_mcp,
+            include_gated=include_gated,
+            include_opencode=include_opencode,
             write_result_artifact=write_result_artifact,
             progress=lambda event: typer.echo(json.dumps(event), err=True),
         )
