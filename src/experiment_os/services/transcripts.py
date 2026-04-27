@@ -33,7 +33,7 @@ class TranscriptEventExtractor:
 
 
 def _package_version_event(run_id: str, line: str) -> RunEventInput | None:
-    match = re.search(r"(drizzle-orm|drizzle-kit)[@=: ]+([0-9][\\w.\\-]+)", line, re.IGNORECASE)
+    match = re.search(r"(drizzle-orm|drizzle-kit)[@=: ]+([0-9][\w.\-]+)", line, re.IGNORECASE)
     if not match:
         if "package.json" not in line.lower():
             return None
@@ -50,7 +50,11 @@ def _package_version_event(run_id: str, line: str) -> RunEventInput | None:
 
 
 def _file_inspection_event(run_id: str, line: str) -> RunEventInput | None:
-    match = re.search(r"(?:inspect|read|cat|open|ls|grep|rg).*?([\\w./-]*(?:migration|schema)[\\w./-]*)", line, re.IGNORECASE)
+    match = re.search(
+        r"(?:inspect|read|cat|open|ls|grep|rg).*?([\w./-]*(?:migration|schema)[\w./-]*)",
+        line,
+        re.IGNORECASE,
+    )
     if not match:
         return None
     return RunEventInput(

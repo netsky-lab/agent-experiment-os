@@ -24,6 +24,7 @@ The main agent-facing artifact is a **work brief**: a compact, source-backed pac
 ## Design Docs
 
 - [Architecture](./docs/architecture.md)
+- [Codex MCP contract](./docs/codex-mcp.md)
 - [Knowledge wiki model](./docs/knowledge-wiki.md)
 - [MCP dependency flow](./docs/mcp-dependency-flow.md)
 - [Roadmap](./docs/roadmap.md)
@@ -80,6 +81,18 @@ docker compose run --rm app uv run experiment-os experiments run-codex \
   --sandbox workspace-write \
   --approval-policy never
 ```
+
+Run Codex against the disposable Drizzle toy fixture:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-toy \
+  --condition-id condition.001-drizzle-brief-assisted \
+  --sandbox workspace-write \
+  --approval-policy never
+```
+
+The fixture is copied from `fixtures/drizzle-toy-repo` into ignored `artifacts/workdirs/...`
+before execution, and the run writes transcript/report artifacts under `artifacts/<run-id>/`.
 
 Register Experiment OS as a Codex MCP server:
 

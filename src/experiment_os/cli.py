@@ -180,6 +180,36 @@ def experiments_run_codex(
     typer.echo(json.dumps(result, indent=2))
 
 
+@experiments_app.command("run-codex-toy")
+def experiments_run_codex_toy(
+    condition_id: str = typer.Option(
+        "condition.001-drizzle-brief-assisted",
+        help="Experiment condition id.",
+    ),
+    prompt: str | None = typer.Option(None, help="Optional prompt override."),
+    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout."),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/drizzle-toy-repo"),
+        help="Fixture repo copied into artifacts/workdirs before running Codex.",
+    ),
+) -> None:
+    """Copy the Drizzle toy fixture and run Codex against the disposable workspace."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_codex_toy_fixture(
+            condition_id=condition_id,
+            prompt=prompt,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @demo_app.command("smoke")
 def demo_smoke() -> None:
     """Run the v0 work-brief loop without an MCP client."""
