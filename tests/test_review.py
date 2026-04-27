@@ -21,3 +21,35 @@ def test_review_promotes_claim_to_draft_card(session):
     assert page["type"] == "knowledge_card"
     assert page["status"] == "draft"
 
+
+def test_review_promotes_claim_to_policy_and_intervention(session):
+    claim = WikiPageInput(
+        id="claim.test.policy-signal",
+        type="claim",
+        title="Version-specific migration signal",
+        status="draft",
+        confidence="low",
+        summary="Check local Drizzle versions before applying beta issue knowledge.",
+        metadata={
+            "claim_type": "version_note",
+            "source_page_id": "source.test",
+            "source_url": "https://example.com/issue",
+        },
+    )
+    WikiRepository(session).upsert_page(claim)
+
+    service = ReviewService(session)
+    policy = service.promote_claim_to_policy(
+        "claim.test.policy-signal",
+        applies_to={"library": "drizzle"},
+    )
+    intervention = service.promote_claim_to_intervention(
+        "claim.test.policy-signal",
+        mitigates=["failure.tool-call-syntax-drift"],
+    )
+
+    assert policy["type"] == "policy"
+    assert policy["status"] == "draft"
+    assert policy["metadata"]["appliesTo"]["library"] == "drizzle"
+    assert intervention["type"] == "intervention"
+    assert intervention["metadata"]["mitigates"] == ["failure.tool-call-syntax-drift"]

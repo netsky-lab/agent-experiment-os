@@ -38,11 +38,7 @@ class ReviewService:
         return page_to_dict(page)
 
     def promote_claim(self, claim_id: str, *, title: str | None = None) -> dict:
-        claim = self._wiki.get_page(claim_id)
-        if claim is None:
-            raise ValueError(f"Unknown claim_id: {claim_id}")
-        if claim.type != "claim":
-            raise ValueError(f"Page is not a claim: {claim_id}")
+        claim = self._claim_page(claim_id)
 
         card_id = f"knowledge.promoted.{claim_id.removeprefix('claim.')}"
         card = WikiPageInput(
@@ -68,3 +64,97 @@ class ReviewService:
         self._wiki.upsert_edge(PageEdge(source_page_id=page.id, target_page_id=claim.id))
         self._retriever.reindex_all()
         return page_to_dict(page)
+
+    def promote_claim_to_policy(
+        self,
+        claim_id: str,
+        *,
+        title: str | None = None,
+        applies_to: dict | None = None,
+    ) -> dict:
+        claim = self._claim_page(claim_id)
+        policy = WikiPageInput(
+            id=f"policy.promoted.{claim.id.removeprefix('claim.')}",
+            type="policy",
+            title=title or claim.title,
+            status="draft",
+            confidence=claim.confidence,
+            summary=claim.summary,
+            body=(
+                "Draft policy promoted from issue evidence. Accept only after verifying source "
+                "relevance, local applicability, and counterexamples."
+            ),
+            metadata={
+                **_promotion_metadata(claim),
+                "appliesTo": applies_to or claim.page_metadata.get("appliesTo", {}),
+                "review": {
+                    "status": "needs_human_review",
+                    "required_before": "agent_decision_rule_use",
+                },
+            },
+        )
+        page = self._wiki.upsert_page(policy)
+        self._wiki.upsert_edge(PageEdge(source_page_id=page.id, target_page_id=claim.id))
+        self._retriever.reindex_all()
+        return page_to_dict(page)
+
+    def promote_claim_to_intervention(
+        self,
+        claim_id: str,
+        *,
+        title: str | None = None,
+        mitigates: list[str] | None = None,
+    ) -> dict:
+        claim = self._claim_page(claim_id)
+        intervention = WikiPageInput(
+            id=f"intervention.promoted.{claim.id.removeprefix('claim.')}",
+            type="intervention",
+            title=title or claim.title,
+            status="draft",
+            confidence=claim.confidence,
+            summary=claim.summary,
+            body=(
+                "Draft intervention promoted from issue evidence. Accept only after verifying "
+                "that it mitigates a named failure mode without introducing larger risk."
+            ),
+            metadata={
+                **_promotion_metadata(claim),
+                "mitigates": mitigates or [],
+                "review": {
+                    "status": "needs_human_review",
+                    "required_before": "agent_intervention_use",
+                },
+            },
+        )
+        page = self._wiki.upsert_page(intervention)
+        self._wiki.upsert_edge(PageEdge(source_page_id=page.id, target_page_id=claim.id))
+        for failure_id in mitigates or []:
+            self._wiki.upsert_edge(
+                PageEdge(
+                    source_page_id=page.id,
+                    target_page_id=failure_id,
+                    edge_type="mitigates",
+                )
+            )
+        self._retriever.reindex_all()
+        return page_to_dict(page)
+
+    def _claim_page(self, claim_id: str):
+        claim = self._wiki.get_page(claim_id)
+        if claim is None:
+            raise ValueError(f"Unknown claim_id: {claim_id}")
+        if claim.type != "claim":
+            raise ValueError(f"Page is not a claim: {claim_id}")
+        return claim
+
+
+def _promotion_metadata(claim) -> dict:
+    return {
+        "promoted_from": claim.id,
+        "claim_type": claim.page_metadata.get("claim_type"),
+        "source_page_id": claim.page_metadata.get("source_page_id"),
+        "source_url": claim.page_metadata.get("source_url"),
+        "trust": "requires_human_review",
+        "review_required": True,
+        "promotion_method": "human_requested.v1",
+    }

@@ -60,3 +60,31 @@ review gate explicit: raw issue claims are not policy.
 The agent-facing graph is already emitted in `brief.content.agent_dependency_graph` and by MCP
 `get_agent_dependency_graph`. The dashboard should visualize the same graph instead of inventing a
 separate human-only model.
+
+Use case: `DashboardReadService.evidence_graph(brief_id=...)`
+
+```json
+{
+  "brief_id": "brief.x",
+  "graph": {
+    "version": "agent_dependency_graph.v1",
+    "nodes": [],
+    "edges": []
+  },
+  "legend": {}
+}
+```
+
+## Review Actions
+
+Use case: `DashboardReadService.review_actions(page_id)`
+
+For draft claims, the UI can show actions for:
+
+- accept/reject status change
+- promote to knowledge card
+- promote to policy
+- promote to intervention
+
+Review actions are command intents. The UI should call the review service/transport adapter rather
+than mutating wiki tables directly.

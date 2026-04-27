@@ -110,6 +110,33 @@ def knowledge_promote_claim(
     typer.echo(json.dumps(page, indent=2))
 
 
+@knowledge_app.command("promote-policy")
+def knowledge_promote_policy(
+    claim_id: str,
+    title: str | None = typer.Option(None, help="Optional title for the promoted policy."),
+) -> None:
+    """Promote a claim into a draft policy page."""
+    with session_scope() as session:
+        page = ReviewService(session).promote_claim_to_policy(claim_id, title=title)
+    typer.echo(json.dumps(page, indent=2))
+
+
+@knowledge_app.command("promote-intervention")
+def knowledge_promote_intervention(
+    claim_id: str,
+    title: str | None = typer.Option(None, help="Optional title for the promoted intervention."),
+    mitigates: list[str] | None = typer.Option(None, help="Failure page id mitigated by this intervention."),
+) -> None:
+    """Promote a claim into a draft intervention page."""
+    with session_scope() as session:
+        page = ReviewService(session).promote_claim_to_intervention(
+            claim_id,
+            title=title,
+            mitigates=mitigates or [],
+        )
+    typer.echo(json.dumps(page, indent=2))
+
+
 @issues_app.command("ingest")
 def issues_ingest(
     repo: str = typer.Option(..., help="GitHub repo in owner/name form."),
@@ -224,6 +251,36 @@ def experiments_run_codex_toy_comparison(
     """Run baseline and brief-assisted Codex conditions against the toy fixture."""
     with session_scope() as session:
         result = ExperimentRunner(session).run_codex_toy_comparison(
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-codex-version-trap")
+def experiments_run_codex_version_trap(
+    condition_id: str = typer.Option(
+        "condition.001-drizzle-brief-assisted",
+        help="Experiment condition id.",
+    ),
+    prompt: str | None = typer.Option(None, help="Optional prompt override."),
+    model: str | None = typer.Option(None, help="Optional Codex model override."),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout."),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/drizzle-version-trap-repo"),
+        help="Fixture repo copied into a disposable workdir before running Codex.",
+    ),
+) -> None:
+    """Run Codex against a Drizzle fixture where issue versions conflict with local versions."""
+    with session_scope() as session:
+        result = ExperimentRunner(session).run_codex_version_trap(
+            condition_id=condition_id,
+            prompt=prompt,
             model=model,
             sandbox=sandbox,
             approval_policy=approval_policy,

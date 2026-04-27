@@ -95,6 +95,18 @@ docker compose run --rm app uv run experiment-os experiments run-codex-toy \
 The fixture is copied from `fixtures/drizzle-toy-repo` into ignored `artifacts/workdirs/...`
 before execution, and the run writes transcript/report artifacts under `artifacts/<run-id>/`.
 
+Run baseline vs brief-assisted Codex conditions:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-toy-comparison
+```
+
+Run the version-trap fixture where issue evidence conflicts with local package versions:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-version-trap
+```
+
 Register Experiment OS as a Codex MCP server:
 
 ```bash

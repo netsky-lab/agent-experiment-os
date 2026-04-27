@@ -170,6 +170,29 @@ def _test_event(run_id: str, command: str, exit_code: Any) -> RunEventInput | No
 
 
 def _file_change_events(run_id: str, item: dict[str, Any]) -> list[RunEventInput]:
+    changes = item.get("changes")
+    if isinstance(changes, list):
+        events: list[RunEventInput] = []
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            path = _optional_string(change.get("path"))
+            if not path:
+                continue
+            events.append(
+                RunEventInput(
+                    run_id=run_id,
+                    event_type="file_edited",
+                    payload={
+                        "path": path,
+                        "reason": "codex file_change",
+                        "kind": change.get("kind"),
+                    },
+                )
+            )
+        if events:
+            return events
+
     text = " ".join(_string_values(item))
     match = re.search(r"(?:modified|changed|edited|patched)\s+([A-Za-z0-9_./-]+\.[A-Za-z0-9_]+)", text)
     if not match:

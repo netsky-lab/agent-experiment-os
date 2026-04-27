@@ -7,6 +7,7 @@ def test_codex_jsonl_extractor_reads_structured_events():
 {"type":"agent_message","message":"drizzle-orm@1.0.0-beta.22"}
 {"type":"exec_command.end","cmd":"npm run db:generate","output":"passed","exit_code":0}
 {"type":"file_change","summary":"modified src/db/schema.ts"}
+{"type":"item.completed","item":{"type":"file_change","changes":[{"path":"/tmp/repo/package.json","kind":"update"}]}}
 {"type":"error","message":"tool call failed after retry"}
 """
 
@@ -17,4 +18,5 @@ def test_codex_jsonl_extractor_reads_structured_events():
     assert "file_inspected" in event_types
     assert "file_edited" in event_types
     assert "test_run" in event_types
+    assert any(event.payload.get("path") == "/tmp/repo/package.json" for event in events)
     assert any(event.payload.get("failure_type") == "tool_call_failure" for event in events)

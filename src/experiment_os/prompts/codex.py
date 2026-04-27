@@ -17,3 +17,12 @@ CODEX_BASELINE_TOY_PROMPT = """You are working in a toy Drizzle repo.
 Fix the Drizzle migration/default-value task with minimal changes, then run npm run db:generate
 and npm test. Report what you inspected, what you changed, and the verification result.
 """
+
+
+CODEX_VERSION_TRAP_PROMPT = """You are working in a Drizzle repo where issue-derived evidence may
+not match the local package versions.
+
+Fix the migration/default-value task with minimal changes. Before editing, inspect package.json,
+TASK.md, the schema, and existing migrations. Do not change dependency versions or rewrite migration
+history unless the local repo evidence proves that is required. Run npm run db:generate and npm test.
+"""

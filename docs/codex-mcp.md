@@ -24,6 +24,9 @@ Before editing code, a Codex run should:
 `get_work_brief`, `resolve_dependencies`, and `record_run_start` remain available as lower-level
 tools, but `start_pre_work_protocol` is the default v1 entry point.
 
+Agents can call `get_event_recording_contract` to get the explicit event schema. This is the product
+path; JSONL transcript mining is only a fallback for experiments that cannot modify the agent prompt.
+
 If MCP is unavailable but `EXPERIMENT_OS_BRIEF_PATH` is set, the agent must read that file before
 editing. This fallback lets experiments compare MCP-rich and brief-only conditions without changing
 the task prompt.
@@ -46,3 +49,21 @@ The graph node roles are intentionally operational:
 - `failure_mode`: failure taxonomy entries to watch for.
 - `domain_knowledge`: accepted or draft library knowledge.
 - `evidence`: source and claim pages that must be verified locally before use.
+
+## Self-Recording Rule
+
+An Experiment OS-aware agent should write its own timeline:
+
+```text
+start_pre_work_protocol -> record_run_event(...) -> work -> record_run_event(...) -> summarize_run
+```
+
+Before the first file edit, it should have recorded:
+
+- `brief_loaded`
+- `dependency_resolved`
+- `package_version_checked`
+- `file_inspected`
+
+Before final answer, it should record `final_answer` and call `summarize_run`. Passive transcript
+parsing remains useful for auditing but is not the primary product mechanism.

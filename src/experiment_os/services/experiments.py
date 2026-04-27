@@ -21,12 +21,17 @@ from experiment_os.domain.schemas import (
     RunArtifactInput,
     RunStartInput,
 )
-from experiment_os.prompts import CODEX_BASELINE_TOY_PROMPT, CODEX_EXPERIMENT_PROMPT
+from experiment_os.prompts import (
+    CODEX_BASELINE_TOY_PROMPT,
+    CODEX_EXPERIMENT_PROMPT,
+    CODEX_VERSION_TRAP_PROMPT,
+)
 from experiment_os.repositories.experiments import ExperimentRepository
 from experiment_os.repositories.runs import RunRepository
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.codex_events import CodexJsonlEventExtractor
 from experiment_os.services.dependencies import DependencyResolver
+from experiment_os.services.experiment_reports import ExperimentReportGenerator
 from experiment_os.services.metrics import MetricsExtractor
 from experiment_os.services.reports import RunReportGenerator
 from experiment_os.services.runs import RunRecorder
@@ -190,6 +195,27 @@ class ExperimentRunner:
             fixture_path=fixture_path,
         )
         return _comparison_report(baseline, brief_assisted)
+
+    def run_codex_version_trap(
+        self,
+        *,
+        condition_id: str = "condition.001-drizzle-brief-assisted",
+        prompt: str | None = None,
+        model: str | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/drizzle-version-trap-repo"),
+    ) -> dict:
+        return self.run_codex_toy_fixture(
+            condition_id=condition_id,
+            prompt=prompt or CODEX_VERSION_TRAP_PROMPT,
+            model=model,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+        )
 
     def _run_agent_condition(
         self,
@@ -519,6 +545,18 @@ def _comparison_report(baseline: dict, brief_assisted: dict) -> dict:
         key: _metric_delta(baseline_metrics.get(key), brief_metrics.get(key))
         for key in sorted(set(baseline_metrics) | set(brief_metrics))
     }
+    interpretation = _comparison_interpretation(baseline_metrics, brief_metrics)
+    report_v2 = ExperimentReportGenerator().comparison(
+        experiment_id=DRIZZLE_EXPERIMENT_ID,
+        hypothesis=(
+            "Issue-informed MCP work briefs reduce stale-library and wrong-workaround failures "
+            "when a coding agent works on Drizzle migration/default-value problems."
+        ),
+        baseline=baseline,
+        candidate=brief_assisted,
+        metric_deltas=deltas,
+        interpretation=interpretation,
+    )
     return {
         "experiment_id": DRIZZLE_EXPERIMENT_ID,
         "comparison": "codex_toy_baseline_vs_brief_assisted",
@@ -527,7 +565,8 @@ def _comparison_report(baseline: dict, brief_assisted: dict) -> dict:
             "brief_assisted": brief_assisted,
         },
         "metric_deltas": deltas,
-        "interpretation": _comparison_interpretation(baseline_metrics, brief_metrics),
+        "interpretation": interpretation,
+        "experiment_report_v2": report_v2.data,
     }
 
 
