@@ -31,6 +31,11 @@ def test_mcp_agent_contract_preserves_dependency_presentation(session):
     assert context["known_failures"]
     assert "knowledge.python-api-drift-local-shim" in context["required_load_order"]
 
+    events = RunRepository(session).list_events(protocol["run"]["run_id"])
+    metrics = MetricsExtractor().extract(events)
+    assert metrics["mcp_pre_work_protocol_called"] is True
+    assert metrics["mcp_dependency_graph_loaded"] is True
+
 
 def test_mcp_event_contract_and_metrics_require_final_answer_recording(session):
     contract = AgentEventContract().as_dict()

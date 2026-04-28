@@ -43,6 +43,7 @@ class AgentWorkProtocol:
                     run_id=run_record["run_id"],
                     event_type="brief_loaded",
                     payload={
+                        "protocol": "experiment_os.pre_work.v1",
                         "brief_id": brief["brief_id"],
                         "required_pages": brief["required_pages"],
                         "recommended_pages": brief["recommended_pages"],
@@ -54,6 +55,7 @@ class AgentWorkProtocol:
                     run_id=run_record["run_id"],
                     event_type="dependency_resolved",
                     payload={
+                        "protocol": "experiment_os.pre_work.v1",
                         "root_pages": dependencies.root_pages,
                         "dependency_pages": [page["id"] for page in dependencies.pages],
                     },
