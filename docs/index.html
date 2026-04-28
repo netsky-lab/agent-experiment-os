@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Experiment OS</title>
+    <meta
+      name="description"
+      content="MCP-native Experiment OS for AI coding agents: turn runs, failures, issue evidence, and metrics into agent-readable memory and decision policies."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317211d'/%3E%3Ctext x='32' y='39' text-anchor='middle' font-family='Arial' font-size='20' font-weight='700' fill='white'%3EAE%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./homepage.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Agent Experiment OS home">
+        <span class="brand-mark">AE</span>
+        <span>Agent Experiment OS</span>
+      </a>
+      <nav class="nav" aria-label="Primary navigation">
+        <a href="#why">Why</a>
+        <a href="#system">System</a>
+        <a href="#research">Research</a>
+        <a href="https://github.com/netsky-lab/agent-experiment-os">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">MCP-native research infrastructure for coding agents</p>
+          <h1 id="hero-title">Turn agent runs into experimental knowledge.</h1>
+          <p class="lede">
+            Agent Experiment OS captures hypotheses, failures, issue evidence, metrics, and
+            interventions, then presents them back to agents as must-load memory and decision
+            policies.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="https://github.com/netsky-lab/agent-experiment-os">
+              View Repository
+            </a>
+            <a class="button" href="#system">Explore The System</a>
+          </div>
+        </div>
+        <div class="hero-panel" aria-label="Experiment OS product preview">
+          <div class="panel-top">
+            <span></span><span></span><span></span>
+            <strong>run.4f7dd4cbaf6c</strong>
+          </div>
+          <div class="panel-grid">
+            <article>
+              <small>Hypothesis</small>
+              <b>Protocol compliance is separate from final pass rate.</b>
+            </article>
+            <article>
+              <small>Clean Pass</small>
+              <b>0.00</b>
+            </article>
+            <article>
+              <small>MCP Pre-work</small>
+              <b>1.00</b>
+            </article>
+            <article>
+              <small>Decision Rule</small>
+              <b>Reject policy promotion when churn is unexplained.</b>
+            </article>
+          </div>
+          <div class="timeline">
+            <span>brief_loaded</span>
+            <span>dependency_resolved</span>
+            <span>decision_recorded</span>
+            <span>test_run</span>
+            <span>final_answer</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="why" class="section">
+        <div class="section-head">
+          <p class="eyebrow">Why it exists</p>
+          <h2>Evals tell you what passed. Experiment OS preserves why it happened.</h2>
+        </div>
+        <div class="three">
+          <article>
+            <h3>Failure Taxonomy</h3>
+            <p>
+              Classify planning failures, tool-call syntax drift, context loss, stale API usage,
+              red-green churn, wrong-file edits, and premature completion.
+            </p>
+          </article>
+          <article>
+            <h3>Experiment Memory</h3>
+            <p>
+              Store runs as knowledge: task shape, agent/model/toolchain, observed failures, metric
+              movement, local facts, and confidence.
+            </p>
+          </article>
+          <article>
+            <h3>Decision Policies</h3>
+            <p>
+              Promote repeated evidence into agent-readable policies with provenance, review gates,
+              and dependsOn edges.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="system" class="section band">
+        <div class="section-head">
+          <p class="eyebrow">System shape</p>
+          <h2>Hypothesis → run → failure → interpretation → intervention → policy.</h2>
+        </div>
+        <div class="flow" aria-label="Experiment knowledge flow">
+          <span>Hypothesis</span>
+          <span>Test Design</span>
+          <span>Run</span>
+          <span>Observed Failures</span>
+          <span>Metric Movement</span>
+          <span>Interpretation</span>
+          <span>Intervention</span>
+          <span>Policy</span>
+        </div>
+        <div class="split">
+          <div>
+            <h3>For agents</h3>
+            <p>
+              MCP tools present must-load pages, dependsOn graphs, decision rules, issue-derived
+              evidence boundaries, and the next required protocol action before risky edits.
+            </p>
+          </div>
+          <div>
+            <h3>For humans</h3>
+            <p>
+              Dashboard read models expose matrices, clean pass rate, churn, protocol compliance,
+              wiki graph health, policy review queues, and provenance.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="research" class="section">
+        <div class="section-head">
+          <p class="eyebrow">Research stance</p>
+          <h2>Not memory for memory’s sake. Evidence becomes useful only after protocol and review.</h2>
+        </div>
+        <div class="research-grid">
+          <article class="statement">
+            <strong>Issue evidence is not instruction.</strong>
+            <p>
+              GitHub issues become source-backed claims. Agents must verify local package versions
+              and local API surfaces before applying them.
+            </p>
+          </article>
+          <article class="statement">
+            <strong>Final pass is not enough.</strong>
+            <p>
+              A run with earlier failed verification is not clean evidence until the failure cause
+              and recovery rationale are recorded.
+            </p>
+          </article>
+          <article class="statement">
+            <strong>Policies need provenance.</strong>
+            <p>
+              Accepted policies carry evidence ids, review rationale, confidence, and dependsOn
+              links to failures, interventions, claims, and sources.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Agent Experiment OS</span>
+      <a href="https://github.com/netsky-lab/agent-experiment-os">github.com/netsky-lab/agent-experiment-os</a>
+    </footer>
+  </body>
+</html>
