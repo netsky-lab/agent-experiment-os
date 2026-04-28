@@ -671,6 +671,7 @@ def _matrix_markdown(matrix_report: dict) -> str:
                 "",
                 f"- run count: `{summary['run_count']}`",
                 f"- tests passing rate: `{_rate(metrics, 'tests_passing')}`",
+                f"- clean pass rate: `{_clean_pass_rate(metrics)}`",
                 f"- test failure mean: `{_mean(metrics, 'test_failure_count')}`",
                 f"- dependency change rate: `{_rate(metrics, 'dependency_changed')}`",
                 f"- file edit mean: `{_mean(metrics, 'file_edit_count')}`",
@@ -817,6 +818,16 @@ def _mean(metrics: dict, key: str) -> str:
     if not isinstance(value, dict) or "mean" not in value:
         return "n/a"
     return f"{value['mean']:.2f}"
+
+
+def _clean_pass_rate(metrics: dict) -> str:
+    pass_rate = _rate_float(metrics, "tests_passing")
+    failure_mean = _mean_float(metrics, "test_failure_count")
+    if pass_rate is None:
+        return "n/a"
+    if failure_mean is None or failure_mean == 0:
+        return f"{pass_rate:.2f}"
+    return "0.00"
 
 
 def _rate_float(metrics: dict, key: str) -> float | None:

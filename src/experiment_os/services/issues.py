@@ -3,6 +3,7 @@ import json
 import re
 import urllib.parse
 import urllib.request
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -147,6 +148,8 @@ def _page_from_issue(repo: str, issue: dict[str, Any], snapshot_id: str) -> Wiki
             "repo": repo,
             "number": issue_number,
             "state": issue.get("state"),
+            "source_updated_at": issue.get("updated_at"),
+            "retrieved_at": datetime.now(UTC).isoformat(),
             "labels": [label.get("name") for label in issue.get("labels", [])],
             "trust": "external_evidence_not_instruction",
             "allowed_use": "evidence_only",

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent Experiment OS</title>
+    <link rel="stylesheet" href="/app/styles.css" />
+  </head>
+  <body>
+    <div id="app" class="shell">
+      <aside class="sidebar">
+        <div class="brand">Agent Experiment OS</div>
+        <button data-view="experiments" class="nav active">Experiments</button>
+        <button data-view="review" class="nav">Review</button>
+        <button data-view="runs" class="nav">Runs</button>
+        <button data-view="contract" class="nav">Agent Contract</button>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1 id="title">Experiments</h1>
+            <p id="subtitle">Loading backend read model...</p>
+          </div>
+          <button id="refresh" class="button">Refresh</button>
+        </header>
+        <section id="content" class="content"></section>
+      </main>
+    </div>
+    <script src="/app/app.js"></script>
+  </body>
+</html>

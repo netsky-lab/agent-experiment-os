@@ -19,6 +19,7 @@ from experiment_os.services.matrix import ExperimentMatrixRunner
 from experiment_os.services.review import ReviewService
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.seed import SeedService
+from experiment_os.db.models import WikiPage
 
 app = typer.Typer(help="Experiment OS developer CLI.")
 db_app = typer.Typer(help="Database commands.")
@@ -58,6 +59,32 @@ def db_seed() -> None:
     """Seed initial wiki knowledge pages and dependency edges."""
     with session_scope() as session:
         result = SeedService(session).seed()
+    typer.echo(json.dumps(result, indent=2))
+
+
+@db_app.command("prune-test-pages")
+def db_prune_test_pages() -> None:
+    """Remove test/dev wiki pages accidentally persisted in a local database."""
+    prefixes = (
+        "policy.candidate.http-status",
+        "policy.candidate.status",
+        "policy.candidate.no-evidence",
+        "policy.candidate.review",
+        "policy.candidate.dashboard",
+        "claim.test.",
+        "knowledge.promoted.test.",
+        "policy.promoted.test.",
+        "intervention.promoted.test.",
+    )
+    with session_scope() as session:
+        pages = [
+            page
+            for page in session.query(WikiPage).all()
+            if page.id.startswith(prefixes)
+        ]
+        for page in pages:
+            session.delete(page)
+        result = {"deleted": len(pages), "ids": [page.id for page in pages]}
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -171,6 +198,33 @@ def issues_ingest(
             issues=issues,
         )
     typer.echo(json.dumps(result, indent=2))
+
+
+@issues_app.command("batch")
+def issues_batch(
+    config: Path = typer.Option(..., help="JSON file with issue ingestion jobs."),
+) -> None:
+    """Run several issue-ingestion jobs from a config file."""
+    payload = json.loads(config.read_text(encoding="utf-8"))
+    jobs = payload.get("jobs", payload if isinstance(payload, list) else [])
+    results = []
+    with session_scope() as session:
+        ingestor = GitHubIssueIngestor(session)
+        for job in jobs:
+            issues = None
+            input_json = job.get("input_json")
+            if input_json:
+                issue_payload = json.loads(Path(input_json).read_text(encoding="utf-8"))
+                issues = issue_payload.get("items", issue_payload)
+            results.append(
+                ingestor.ingest(
+                    repo=job["repo"],
+                    query=job["query"],
+                    limit=job.get("limit", 5),
+                    issues=issues,
+                )
+            )
+    typer.echo(json.dumps({"jobs": len(results), "results": results}, indent=2))
 
 
 @experiments_app.command("seed-drizzle")

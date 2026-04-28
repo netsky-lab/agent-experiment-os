@@ -81,6 +81,7 @@ def test_http_api_exposes_dashboard_read_models(session):
         "/ui/bootstrap",
         params={"experiment_id": "experiment.001-drizzle-brief"},
     )
+    app_index = client.get("/app/")
 
     assert experiments.status_code == 200
     assert experiments.json()["experiments"]
@@ -112,6 +113,8 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert ui_bootstrap.status_code == 200
     assert ui_bootstrap.json()["contract"]["version"] == "ui_contract.v1"
     assert ui_bootstrap.json()["story"]["experiment"]["id"] == "experiment.001-drizzle-brief"
+    assert app_index.status_code == 200
+    assert "Agent Experiment OS" in app_index.text
 
 
 def test_http_api_exposes_agent_work_context_and_search(session):
@@ -133,6 +136,9 @@ def test_http_api_exposes_agent_work_context_and_search(session):
     context_response = client.get(
         f"/briefs/{brief['brief_id']}/agent-work-context",
     )
+    preview_response = client.get(
+        f"/briefs/{brief['brief_id']}/presentation-preview",
+    )
     knowledge_response = client.post(
         "/knowledge/search",
         json={
@@ -151,6 +157,8 @@ def test_http_api_exposes_agent_work_context_and_search(session):
     )
 
     assert context_response.status_code == 200
+    assert preview_response.status_code == 200
+    assert preview_response.json()["presentation_contract"]["must_load"]
     context = context_response.json()
     assert context["version"] == "agent_work_context.v1"
     assert context["presentation_contract"]["must_load"]
@@ -162,6 +170,41 @@ def test_http_api_exposes_agent_work_context_and_search(session):
         item["id"] == "claim.issue.example-llm-sdk.upgrade-advice"
         for item in issue_response.json()["results"]
     )
+
+
+def test_http_api_exposes_run_completion_and_page_provenance(session, tmp_path):
+    result = ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test passed'",
+        workdir=tmp_path,
+        run_metadata={"matrix_id": "matrix.completion-http"},
+    )
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="source.test.provenance",
+            type="source",
+            title="Source provenance",
+            status="accepted",
+            confidence=None,
+            summary="A source page.",
+            metadata={
+                "allowed_use": "evidence_only",
+                "source_updated_at": "2026-04-28T00:00:00+00:00",
+                "retrieved_at": "2026-04-27T00:00:00+00:00",
+            },
+        )
+    )
+    session.commit()
+    client = TestClient(create_app())
+
+    completion = client.get(f"/runs/{result['run']['run_id']}/completion-contract")
+    provenance = client.get("/pages/source.test.provenance/provenance")
+
+    assert completion.status_code == 200
+    assert completion.json()["status"] == "failed"
+    assert "pre_work_missing" in completion.json()["violations"]
+    assert provenance.status_code == 200
+    assert provenance.json()["freshness"]["stale_warning"] is True
 
 
 def test_http_api_review_status_accepts_rationale(session):

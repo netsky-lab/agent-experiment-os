@@ -1,13 +1,18 @@
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+from pathlib import Path
 
 from experiment_os.database import check_database, session_scope
 from experiment_os.domain.schemas import BriefRequest
 from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
+from experiment_os.services.completion import CompletionContractService
 from experiment_os.services.dashboard import DashboardReadService
+from experiment_os.services.provenance import ProvenanceService
 from experiment_os.services.protocol import AgentWorkProtocol
 from experiment_os.services.review import ReviewService
 
@@ -42,6 +47,9 @@ class IssueKnowledgeSearchRequest(BaseModel):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Experiment OS API", version="0.1.0")
+    static_dir = Path(__file__).resolve().parents[2] / "web"
+    if static_dir.exists():
+        app.mount("/app", StaticFiles(directory=static_dir, html=True), name="app")
 
     @app.get("/health")
     def health() -> dict[str, Any]:
@@ -134,6 +142,14 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/runs/{run_id}/completion-contract")
+    def run_completion_contract(run_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return CompletionContractService(session).validate(run_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.get("/experiments/{experiment_id}/churn")
     def experiment_churn(
         experiment_id: str,
@@ -174,6 +190,23 @@ def create_app() -> FastAPI:
                 )
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/briefs/{brief_id}/presentation-preview")
+    def presentation_preview(brief_id: str, dependency_depth: int = 2) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                context = AgentWorkProtocol(session).agent_work_context_for_brief(
+                    brief_id,
+                    dependency_depth=dependency_depth,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+            return {
+                "brief_id": brief_id,
+                "presentation_contract": context["presentation_contract"],
+                "tool_sequence": context["tool_sequence"],
+                "completion_contract": context["completion_contract"],
+            }
 
     @app.post("/knowledge/search")
     def search_knowledge(request: KnowledgeSearchRequest) -> dict[str, Any]:
@@ -232,6 +265,14 @@ def create_app() -> FastAPI:
         with session_scope() as session:
             try:
                 return DashboardReadService(session).review_actions(page_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/pages/{page_id}/provenance")
+    def page_provenance(page_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return ProvenanceService(session).page_provenance(page_id)
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 

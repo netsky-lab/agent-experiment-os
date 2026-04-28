@@ -125,3 +125,29 @@ def test_review_status_rejects_policy_acceptance_without_evidence(session):
             rationale="Looks plausible.",
             reviewer="maintainer",
         )
+
+
+def test_review_status_blocks_policy_acceptance_from_saturated_matrix(session):
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.saturated",
+            type="policy",
+            title="Saturated policy",
+            status="draft",
+            confidence="medium",
+            summary="A policy candidate.",
+            metadata={
+                "review_required": True,
+                "promotion_gate": {"matrix_saturated": True},
+            },
+        )
+    )
+
+    with pytest.raises(ValueError, match="saturated"):
+        ReviewService(session).set_status(
+            "policy.candidate.saturated",
+            "accepted",
+            rationale="Evidence reviewed.",
+            reviewer="maintainer",
+            evidence_ids=["matrix.saturated"],
+        )

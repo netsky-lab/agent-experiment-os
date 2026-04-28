@@ -65,6 +65,7 @@ def test_version_trap_matrix_runs_conditions_and_aggregates(session, tmp_path, m
     text = artifact.read_text(encoding="utf-8")
     assert "## Interpretation" in text
     assert "## Policy Decision" in text
+    assert "clean pass rate" in text
     assert "red-green churn" in text
     assert "Interpretation Scaffold" not in text
 

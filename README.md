@@ -71,6 +71,12 @@ Run the API:
 make api
 ```
 
+Open the static product UI after the API starts:
+
+```text
+http://127.0.0.1:8080/app/
+```
+
 Run the MCP server:
 
 ```bash
@@ -243,6 +249,19 @@ docker compose run --rm app uv run experiment-os issues ingest \
   --input-json research/issues/openai-python-responses-search.json
 ```
 
+Run several issue-ingestion jobs from a config:
+
+```bash
+docker compose run --rm app uv run experiment-os issues batch \
+  --config research/issues/issue-ingestion-batch.example.json
+```
+
+Prune local test pages from a dev database:
+
+```bash
+docker compose run --rm app uv run experiment-os db prune-test-pages
+```
+
 Run the MCP server over stdio:
 
 ```bash
@@ -269,8 +288,11 @@ Useful UI/read-model endpoints:
 - `GET /experiments/{experiment_id}/protocol-compliance`
 - `GET /experiments/{experiment_id}/churn?matrix_id=...`
 - `GET /runs/{run_id}`
+- `GET /runs/{run_id}/completion-contract`
 - `GET /runs/{run_id}/churn`
 - `GET /briefs/{brief_id}/agent-work-context`
+- `GET /briefs/{brief_id}/presentation-preview`
+- `GET /pages/{page_id}/provenance`
 - `GET /policy-candidates`
 - `GET /ui/contract`
 - `GET /ui/bootstrap`

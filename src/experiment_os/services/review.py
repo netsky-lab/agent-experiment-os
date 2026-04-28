@@ -46,6 +46,7 @@ class ReviewService:
             raise ValueError(f"Unknown page_id: {page_id}")
         _validate_status_change(
             page_type=page.type,
+            metadata=page.page_metadata,
             status=status,
             rationale=rationale,
             evidence_ids=evidence_ids or [],
@@ -191,6 +192,7 @@ def _promotion_metadata(claim) -> dict:
 def _validate_status_change(
     *,
     page_type: str,
+    metadata: dict,
     status: str,
     rationale: str | None,
     evidence_ids: list[str],
@@ -201,3 +203,9 @@ def _validate_status_change(
         raise ValueError("Accepting a policy or intervention requires review rationale.")
     if not evidence_ids:
         raise ValueError("Accepting a policy or intervention requires evidence_ids.")
+    if status == "accepted" and page_type == "policy":
+        gate = metadata.get("promotion_gate", {})
+        if gate.get("matrix_saturated"):
+            raise ValueError("Policy acceptance blocked because matrix evidence is saturated.")
+        if gate.get("unexplained_churn"):
+            raise ValueError("Policy acceptance blocked because churn is unexplained.")

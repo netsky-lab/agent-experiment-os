@@ -1,0 +1,15 @@
+{
+  "jobs": [
+    {
+      "repo": "openai/openai-python",
+      "query": "responses migration",
+      "limit": 3,
+      "input_json": "research/issues/openai-python-responses-search.json"
+    },
+    {
+      "repo": "drizzle-team/drizzle-orm",
+      "query": "migration default",
+      "limit": 3
+    }
+  ]
+}

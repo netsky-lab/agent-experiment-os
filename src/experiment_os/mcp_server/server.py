@@ -9,6 +9,7 @@ from experiment_os.repositories.briefs import BriefRepository
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
+from experiment_os.services.completion import CompletionContractService
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.event_contract import AgentEventContract, event_contract_prompt
 from experiment_os.services.policy_candidates import PolicyCandidateService
@@ -211,6 +212,31 @@ def create_mcp_server() -> FastMCP:
         """Return a compact run summary with recorded events."""
         with session_scope() as session:
             return RunRecorder(session).summarize_run(run_id)
+
+    @mcp.tool()
+    def validate_run_completion(run_id: str) -> dict[str, Any]:
+        """Validate whether a run satisfied the strict Experiment OS completion contract."""
+        with session_scope() as session:
+            return CompletionContractService(session).validate(run_id)
+
+    @mcp.tool()
+    def complete_run(
+        run_id: str,
+        summary: str,
+        outcome: str = "passed",
+    ) -> dict[str, Any]:
+        """Record final_answer and return strict completion-contract validation."""
+        with session_scope() as session:
+            recorder = RunRecorder(session)
+            event = recorder.record_event(
+                RunEventInput(
+                    run_id=run_id,
+                    event_type="final_answer",
+                    payload={"summary": summary, "outcome": outcome, "source": "mcp.complete_run"},
+                )
+            )
+            validation = CompletionContractService(session).validate(run_id)
+            return {"event": event, "completion": validation}
 
     @mcp.tool()
     def propose_policy_candidate_from_run(run_id: str) -> dict[str, Any]:
