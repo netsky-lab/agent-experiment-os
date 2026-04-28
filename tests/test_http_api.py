@@ -57,6 +57,10 @@ def test_http_api_exposes_dashboard_read_models(session):
     graph = client.get(f"/briefs/{brief['brief_id']}/evidence-graph")
     matrix = client.get("/experiments/experiment.001-drizzle-brief/matrix")
     latest_matrix = client.get("/experiments/experiment.001-drizzle-brief/matrix/latest")
+    latest_comparison = client.get(
+        "/experiments/experiment.001-drizzle-brief/matrix/latest-comparison"
+    )
+    story = client.get("/experiments/experiment.001-drizzle-brief/story")
     compliance = client.get("/experiments/experiment.001-drizzle-brief/protocol-compliance")
     comparison = client.get(
         "/experiments/experiment.001-drizzle-brief/matrix/compare",
@@ -70,6 +74,8 @@ def test_http_api_exposes_dashboard_read_models(session):
         "/experiments/experiment.001-drizzle-brief/churn",
         params={"matrix_id": "matrix.http-right"},
     )
+    latest_churn = client.get("/experiments/experiment.001-drizzle-brief/churn/latest")
+    categories = client.get("/policy-candidates/categories")
     ui_contract = client.get("/ui/contract")
 
     assert experiments.status_code == 200
@@ -79,7 +85,11 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert matrix.status_code == 200
     assert matrix.json()["matrices"]
     assert latest_matrix.status_code == 200
-    assert latest_matrix.json()["matrix"]["matrix_id"] == "matrix.http"
+    assert latest_matrix.json()["matrix"]["matrix_id"] == "matrix.http-right"
+    assert latest_comparison.status_code == 200
+    assert latest_comparison.json()["comparison"]["right_matrix_id"] == "matrix.http-right"
+    assert story.status_code == 200
+    assert story.json()["latest_matrix"]["matrix_id"] == "matrix.http-right"
     assert compliance.status_code == 200
     assert compliance.json()["matrices"]
     assert comparison.status_code == 200
@@ -88,8 +98,13 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert policies.json()["items"]
     assert churn.status_code == 200
     assert churn.json()["matrices"][0]["conditions"]["static_brief"]["runs"][0]["needs_review"] is True
+    assert latest_churn.status_code == 200
+    assert latest_churn.json()["items"]
+    assert categories.status_code == 200
+    assert categories.json()["categories"]
     assert ui_contract.status_code == 200
     assert any(surface["id"] == "MatrixCompare" for surface in ui_contract.json()["surfaces"])
+    assert any(surface["id"] == "ExperimentStory" for surface in ui_contract.json()["surfaces"])
 
 
 def test_http_api_exposes_agent_work_context_and_search(session):
@@ -163,6 +178,7 @@ def test_http_api_review_status_accepts_rationale(session):
             "status": "accepted",
             "rationale": "Evidence reviewed.",
             "reviewer": "maintainer",
+            "evidence_ids": ["run.http-status"],
         },
     )
 
@@ -170,3 +186,4 @@ def test_http_api_review_status_accepts_rationale(session):
     body = response.json()
     assert body["status"] == "accepted"
     assert body["metadata"]["review"]["rationale"] == "Evidence reviewed."
+    assert body["metadata"]["review"]["evidence_ids"] == ["run.http-status"]

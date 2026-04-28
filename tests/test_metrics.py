@@ -187,6 +187,23 @@ def test_metrics_detect_local_api_surface_before_edit(session):
     assert summary["metrics"]["wrong_file_edits"] == 0
 
 
+def test_metrics_allow_nested_api_router_edits(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(RunStartInput(task="nested api drift metrics test"))
+
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="file_edited",
+            payload={"path": "agent_client/routing.py"},
+        )
+    )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["wrong_file_edits"] == 0
+
+
 def test_metrics_count_forbidden_oracle_edits(session):
     recorder = RunRecorder(session)
     run = recorder.start_run(RunStartInput(task="forbidden edit metrics test"))

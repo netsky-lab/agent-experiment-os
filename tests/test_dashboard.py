@@ -49,6 +49,54 @@ def test_dashboard_exposes_matrix_projection(session, tmp_path):
     assert "quality_signals" in matrices["matrix.test"]["conditions"]["static_brief"]
 
 
+def test_dashboard_exposes_latest_comparison_story_and_categories(session, tmp_path):
+    ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test passed'",
+        workdir=tmp_path,
+        timeout_seconds=30,
+        run_metadata={
+            "matrix_id": "matrix.story-left",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
+    ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test failed'; echo 'npm test passed'",
+        workdir=tmp_path,
+        timeout_seconds=30,
+        run_metadata={
+            "matrix_id": "matrix.story-right",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.story-churn",
+            type="policy",
+            title="Review red-green churn before accepting agent policy",
+            status="draft",
+            confidence="medium",
+            summary="Churn policy candidate.",
+            metadata={"review_required": True, "source_signal": "red_green_churn"},
+        )
+    )
+
+    dashboard = DashboardReadService(session)
+    comparison = dashboard.latest_matrix_comparison_candidate("experiment.001-drizzle-brief")
+    churn = dashboard.latest_churn_runs("experiment.001-drizzle-brief")
+    categories = dashboard.policy_candidate_categories()
+    story = dashboard.experiment_story("experiment.001-drizzle-brief")
+
+    assert comparison["comparison"]["right_matrix_id"] == "matrix.story-right"
+    assert churn["items"][0]["run_id"]
+    assert any(category["id"] == "red_green_churn" for category in categories["categories"])
+    assert story["latest_matrix"]["matrix_id"] == "matrix.story-right"
+    assert story["latest_churn_runs"]
+
+
 def test_dashboard_exposes_evidence_graph_and_review_actions(session):
     brief = BriefCompiler(session).compile(
         BriefRequest(
@@ -76,6 +124,10 @@ def test_dashboard_exposes_evidence_graph_and_review_actions(session):
     assert graph["graph"]["nodes"]
     assert "evidence" in graph["legend"]
     assert any(action["id"] == "promote_policy" for action in actions["actions"])
+    assert any(
+        action["id"] == "accept" and "evidence_ids" in action["requires"]
+        for action in actions["actions"]
+    )
 
 
 def test_dashboard_lists_policy_candidates(session):

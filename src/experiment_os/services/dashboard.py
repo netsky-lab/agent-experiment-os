@@ -115,8 +115,26 @@ class DashboardReadService:
         matrices = matrix["matrices"]
         if not matrices:
             return {"experiment_id": experiment_id, "matrix": None}
-        latest = max(matrices, key=lambda item: item.get("latest_result_created_at") or "")
+        latest = max(matrices, key=_matrix_sort_key)
         return {"experiment_id": experiment_id, "matrix": latest}
+
+    def latest_matrix_comparison_candidate(self, experiment_id: str) -> dict[str, Any]:
+        matrices = sorted(
+            self.experiment_matrix(experiment_id)["matrices"],
+            key=_matrix_sort_key,
+            reverse=True,
+        )
+        if len(matrices) < 2:
+            return {
+                "experiment_id": experiment_id,
+                "comparison": None,
+                "reason": "Need at least two matrices for comparison.",
+            }
+        right, left = matrices[0], matrices[1]
+        return {
+            "experiment_id": experiment_id,
+            "comparison": MatrixComparisonService().compare(left=left, right=right),
+        }
 
     def protocol_compliance(self, experiment_id: str) -> dict[str, Any]:
         matrix = self.experiment_matrix(experiment_id)
@@ -222,6 +240,34 @@ class DashboardReadService:
             ],
         }
 
+    def latest_churn_runs(self, experiment_id: str, *, limit: int = 20) -> dict[str, Any]:
+        runs: list[dict[str, Any]] = []
+        for matrix in self.experiment_matrix(experiment_id)["matrices"]:
+            for condition_id, condition in matrix["conditions"].items():
+                for run in condition["runs"]:
+                    failure_count = run["metrics"].get("test_failure_count", 0)
+                    forbidden_count = run["metrics"].get("forbidden_edit_count", 0)
+                    wrong_file_count = run["metrics"].get("wrong_file_edits", 0)
+                    if max(failure_count, forbidden_count, wrong_file_count) <= 0:
+                        continue
+                    runs.append(
+                        {
+                            "matrix_id": matrix["matrix_id"],
+                            "matrix_kind": matrix["matrix_kind"],
+                            "condition_id": condition_id,
+                            "run_id": run["run_id"],
+                            "created_at": run["created_at"],
+                            "metrics": run["metrics"],
+                            "review_signals": {
+                                "test_failure_count": failure_count,
+                                "forbidden_edit_count": forbidden_count,
+                                "wrong_file_edits": wrong_file_count,
+                            },
+                        }
+                    )
+        runs.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+        return {"experiment_id": experiment_id, "items": runs[:limit]}
+
     def review_queue(self, *, limit: int = 50) -> dict[str, Any]:
         return {"items": self._review.review_queue(limit=limit)}
 
@@ -232,6 +278,40 @@ class DashboardReadService:
             if page.page_metadata.get("review_required", True)
         ]
         return {"items": [page_to_dict(page) for page in pages[:limit]]}
+
+    def policy_candidate_categories(self, *, limit: int = 50) -> dict[str, Any]:
+        items = self.policy_candidates(limit=limit)["items"]
+        categories: dict[str, list[dict[str, Any]]] = {}
+        for item in items:
+            category = _policy_candidate_category(item)
+            categories.setdefault(category, []).append(item)
+        return {
+            "categories": [
+                {
+                    "id": category,
+                    "count": len(category_items),
+                    "items": category_items,
+                }
+                for category, category_items in sorted(categories.items())
+            ]
+        }
+
+    def experiment_story(self, experiment_id: str) -> dict[str, Any]:
+        detail = self.experiment_detail(experiment_id)
+        latest_matrix = self.latest_experiment_matrix(experiment_id)
+        comparison = self.latest_matrix_comparison_candidate(experiment_id)
+        churn = self.latest_churn_runs(experiment_id, limit=10)
+        compliance = self.protocol_compliance(experiment_id)
+        return {
+            "experiment": detail["experiment"],
+            "latest_matrix": latest_matrix["matrix"],
+            "latest_comparison": comparison["comparison"],
+            "protocol_compliance": compliance["matrices"],
+            "latest_churn_runs": churn["items"],
+            "policy_candidate_categories": self.policy_candidate_categories(limit=20)[
+                "categories"
+            ],
+        }
 
     def evidence_graph(self, *, brief_id: str) -> dict[str, Any]:
         brief = self._briefs.get(brief_id)
@@ -258,8 +338,18 @@ class DashboardReadService:
         if page.status == "draft":
             actions.extend(
                 [
-                    {"id": "accept", "label": "Accept", "target_status": "accepted"},
-                    {"id": "reject", "label": "Reject", "target_status": "rejected"},
+                    {
+                        "id": "accept",
+                        "label": "Accept",
+                        "target_status": "accepted",
+                        "requires": ["rationale", "evidence_ids"],
+                    },
+                    {
+                        "id": "reject",
+                        "label": "Reject",
+                        "target_status": "rejected",
+                        "requires": ["rationale"],
+                    },
                 ]
             )
         if page.type == "claim":
@@ -296,6 +386,16 @@ class DashboardReadService:
                     "purpose": "Compare protocol compliance, quality signals, and metric deltas between matrices.",
                 },
                 {
+                    "id": "LatestMatrixComparison",
+                    "endpoint": "GET /experiments/{experiment_id}/matrix/latest-comparison",
+                    "purpose": "Pick the latest two matrices for UI comparison without requiring ids upfront.",
+                },
+                {
+                    "id": "ExperimentStory",
+                    "endpoint": "GET /experiments/{experiment_id}/story",
+                    "purpose": "Assemble the experiment hypothesis, latest matrix, protocol compliance, churn, and review work into one read model.",
+                },
+                {
                     "id": "RunTimeline",
                     "endpoint": "GET /runs/{run_id}",
                     "purpose": "Inspect structured events, metrics, and artifacts for one run.",
@@ -306,9 +406,19 @@ class DashboardReadService:
                     "purpose": "Review failed verification output and recovery verification for red-green runs.",
                 },
                 {
+                    "id": "LatestChurnRuns",
+                    "endpoint": "GET /experiments/{experiment_id}/churn/latest",
+                    "purpose": "List recent runs that need review because of churn, forbidden edits, or wrong-file edits.",
+                },
+                {
                     "id": "PolicyReview",
                     "endpoint": "GET /policy-candidates",
                     "purpose": "Review draft policies before agent decision-rule use.",
+                },
+                {
+                    "id": "PolicyReviewCategories",
+                    "endpoint": "GET /policy-candidates/categories",
+                    "purpose": "Group draft policy candidates by the failure or protocol signal they address.",
                 },
                 {
                     "id": "AgentContract",
@@ -393,6 +503,13 @@ def _latest_result_created_at(results: list) -> str | None:
     return max(timestamps).isoformat()
 
 
+def _matrix_sort_key(matrix: dict[str, Any]) -> tuple[str, str]:
+    return (
+        matrix.get("latest_result_created_at") or "",
+        matrix.get("matrix_id") or "",
+    )
+
+
 def _protocol_compliance(metrics: dict[str, dict]) -> dict[str, Any]:
     return ProtocolComplianceCalculator().condition_compliance(metrics)
 
@@ -436,3 +553,27 @@ def _clean_pass_rate(pass_rate: float | None, test_failure_mean: float | None) -
     if test_failure_mean is None:
         return pass_rate
     return pass_rate if test_failure_mean == 0 else 0.0
+
+
+def _policy_candidate_category(item: dict[str, Any]) -> str:
+    metadata = item.get("metadata", {})
+    source = " ".join(
+        str(value).lower()
+        for value in [
+            item.get("id", ""),
+            item.get("title", ""),
+            item.get("summary", ""),
+            metadata.get("source_signal", ""),
+            metadata.get("failure_type", ""),
+            metadata.get("metric", ""),
+        ]
+    )
+    if "churn" in source or "test_failure" in source or "red_green" in source:
+        return "red_green_churn"
+    if "dependency" in source or "version" in source:
+        return "dependency_verification"
+    if "forbidden" in source or "wrong_file" in source or "wrong-file" in source:
+        return "edit_boundary"
+    if "mcp" in source or "prework" in source or "pre-work" in source:
+        return "mcp_protocol"
+    return "other"

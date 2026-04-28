@@ -39,6 +39,7 @@ class ReviewService:
         *,
         rationale: str | None = None,
         reviewer: str | None = None,
+        evidence_ids: list[str] | None = None,
     ) -> dict:
         page = self._wiki.set_status(page_id, status)
         metadata = dict(page.page_metadata)
@@ -47,6 +48,7 @@ class ReviewService:
             "status": status,
             "rationale": rationale,
             "reviewer": reviewer,
+            "evidence_ids": evidence_ids or [],
         }
         if status in {"accepted", "rejected", "deprecated"}:
             metadata["review_required"] = False

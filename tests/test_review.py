@@ -91,6 +91,7 @@ def test_review_status_records_rationale_and_clears_review_required(session):
         "accepted",
         rationale="Repeated matrix evidence supports this policy.",
         reviewer="maintainer",
+        evidence_ids=["matrix.test", "run.test"],
     )
 
     assert page["status"] == "accepted"
@@ -99,3 +100,4 @@ def test_review_status_records_rationale_and_clears_review_required(session):
         "Repeated matrix evidence supports this policy."
     )
     assert page["metadata"]["review"]["reviewer"] == "maintainer"
+    assert page["metadata"]["review"]["evidence_ids"] == ["matrix.test", "run.test"]

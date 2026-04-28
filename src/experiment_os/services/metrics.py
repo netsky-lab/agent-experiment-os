@@ -168,6 +168,7 @@ def _looks_like_allowed_drizzle_task_edit(path: str) -> bool:
         or "drizzle/migrations/" in path
         or "/migrations/" in path
         or path.endswith("agent_client/client.py")
+        or path.endswith("agent_client/routing.py")
     )
 
 

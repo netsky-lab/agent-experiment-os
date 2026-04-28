@@ -16,6 +16,7 @@ class StatusUpdate(BaseModel):
     status: str
     rationale: str | None = None
     reviewer: str | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class PromotionRequest(BaseModel):
@@ -75,6 +76,24 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/experiments/{experiment_id}/matrix/latest-comparison")
+    def latest_matrix_comparison_candidate(experiment_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).latest_matrix_comparison_candidate(
+                    experiment_id
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/experiments/{experiment_id}/story")
+    def experiment_story(experiment_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).experiment_story(experiment_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.get("/experiments/{experiment_id}/protocol-compliance")
     def protocol_compliance(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
@@ -125,6 +144,17 @@ def create_app() -> FastAPI:
                 return DashboardReadService(session).experiment_churn(
                     experiment_id,
                     matrix_id=matrix_id,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/experiments/{experiment_id}/churn/latest")
+    def latest_churn_runs(experiment_id: str, limit: int = 20) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).latest_churn_runs(
+                    experiment_id,
+                    limit=limit,
                 )
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
@@ -184,6 +214,11 @@ def create_app() -> FastAPI:
         with session_scope() as session:
             return DashboardReadService(session).policy_candidates(limit=limit)
 
+    @app.get("/policy-candidates/categories")
+    def policy_candidate_categories(limit: int = 50) -> dict[str, Any]:
+        with session_scope() as session:
+            return DashboardReadService(session).policy_candidate_categories(limit=limit)
+
     @app.get("/briefs/{brief_id}/evidence-graph")
     def evidence_graph(brief_id: str) -> dict[str, Any]:
         with session_scope() as session:
@@ -214,6 +249,7 @@ def create_app() -> FastAPI:
                     update.status,
                     rationale=update.rationale,
                     reviewer=update.reviewer,
+                    evidence_ids=update.evidence_ids,
                 )
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
