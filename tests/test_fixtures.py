@@ -54,3 +54,19 @@ def test_hard_python_api_drift_fixture_contains_dependency_upgrade_bait():
     assert "example-llm-sdk==0.9.0" in pyproject
     assert "example-llm-sdk==1.2.0" in task
     assert "example-llm-sdk==1.2.0" in test_file
+
+
+def test_nested_python_api_drift_fixture_hides_local_surface_behind_adapter():
+    workdir = Path("fixtures/python-api-drift-nested-repo")
+
+    task = (workdir / "TASK.md").read_text(encoding="utf-8")
+    client = (workdir / "agent_client/client.py").read_text(encoding="utf-8")
+    responses_adapter = (
+        workdir / "agent_client/adapters/responses_adapter.py"
+    ).read_text(encoding="utf-8")
+    test_file = (workdir / "tests/test_client.py").read_text(encoding="utf-8")
+
+    assert "Python API Drift Nested Trap" in task
+    assert "LegacyChatAdapter" in client
+    assert "ResponsesAdapter" in responses_adapter
+    assert "ResponsesAdapter" in test_file

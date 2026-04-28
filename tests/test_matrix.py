@@ -28,6 +28,8 @@ def test_version_trap_matrix_runs_conditions_and_aggregates(session, tmp_path, m
         "echo '{\"type\":\"exec_command.end\",\"cmd\":\"npm run db:generate\","
         "\"output\":\"passed\",\"exit_code\":0}'\n"
         "echo '{\"type\":\"exec_command.end\",\"cmd\":\"npm test\","
+        "\"output\":\"failed\",\"exit_code\":1}'\n"
+        "echo '{\"type\":\"exec_command.end\",\"cmd\":\"npm test\","
         "\"output\":\"passed\",\"exit_code\":0}'\n",
         encoding="utf-8",
     )
@@ -59,7 +61,12 @@ def test_version_trap_matrix_runs_conditions_and_aggregates(session, tmp_path, m
     assert progress_events[0]["event"] == "matrix_started"
     assert progress_events[-1]["event"] == "matrix_finished"
     assert "result_artifact" in report
-    assert (tmp_path / "results").exists()
+    artifact = next((tmp_path / "results").glob("*.md"))
+    text = artifact.read_text(encoding="utf-8")
+    assert "## Interpretation" in text
+    assert "## Policy Decision" in text
+    assert "red-green churn" in text
+    assert "Interpretation Scaffold" not in text
 
 
 def test_version_trap_matrix_can_skip_mcp_condition(session, tmp_path, monkeypatch):

@@ -84,6 +84,19 @@ def test_policy_candidate_created_from_run_dependency_edit_signal(session):
     assert page["metadata"]["review_required"] is True
 
 
+def test_policy_candidate_created_from_run_red_green_churn_signal(session):
+    summary = {
+        "run": {"run_id": "run.churn", "task": "Fix API drift"},
+        "metrics": {"test_failure_count": 1, "tests_passing": True},
+    }
+
+    page = PolicyCandidateService(session).propose_from_run_summary(summary)
+
+    assert page is not None
+    assert page["id"] == "policy.candidate.run.churn.red-green-churn"
+    assert page["metadata"]["review_required"] is True
+
+
 def test_policy_candidate_created_from_mcp_protocol_gap(session):
     matrix_report = {
         "matrix_id": "matrix.api-drift.test",

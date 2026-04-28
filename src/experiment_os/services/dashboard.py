@@ -113,6 +113,25 @@ class DashboardReadService:
         latest = max(matrices, key=lambda item: item.get("latest_result_created_at") or "")
         return {"experiment_id": experiment_id, "matrix": latest}
 
+    def protocol_compliance(self, experiment_id: str) -> dict[str, Any]:
+        matrix = self.experiment_matrix(experiment_id)
+        matrices = []
+        for item in matrix["matrices"]:
+            conditions = {
+                condition: projection["protocol_compliance"]
+                for condition, projection in item["conditions"].items()
+            }
+            matrices.append(
+                {
+                    "matrix_id": item["matrix_id"],
+                    "matrix_kind": item["matrix_kind"],
+                    "latest_result_created_at": item["latest_result_created_at"],
+                    "conditions": conditions,
+                    "overall": _overall_protocol_compliance(conditions),
+                }
+            )
+        return {"experiment_id": experiment_id, "matrices": matrices}
+
     def run_detail(self, run_id: str) -> dict[str, Any]:
         run = self._runs.get_run(run_id)
         if run is None:
@@ -274,3 +293,28 @@ def _metric_rate(metrics: dict[str, dict], key: str) -> float | None:
         return None
     rate = value.get("rate")
     return float(rate) if isinstance(rate, int | float) else None
+
+
+def _overall_protocol_compliance(conditions: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    gated = {
+        condition: values
+        for condition, values in conditions.items()
+        if "gated" in condition
+    }
+    values = gated or conditions
+    rates = [
+        rate
+        for condition_values in values.values()
+        for rate in condition_values.values()
+        if isinstance(rate, int | float)
+    ]
+    return {
+        "condition_count": len(values),
+        "mean_rate": sum(rates) / len(rates) if rates else None,
+        "all_pre_work_loaded": all(
+            condition_values.get("pre_work_rate") == 1
+            for condition_values in values.values()
+        )
+        if values
+        else False,
+    }

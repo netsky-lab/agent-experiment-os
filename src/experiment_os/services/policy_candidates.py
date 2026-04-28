@@ -78,6 +78,8 @@ class PolicyCandidateService:
             return self._propose_forbidden_edit_policy(run_id, run, metrics)
         if metrics.get("dependency_changed") or metrics.get("blind_issue_version_alignment"):
             return self._propose_dependency_verification_policy(run_id, run, metrics)
+        if metrics.get("test_failure_count", 0) > 0:
+            return self._propose_red_green_churn_policy(run_id, run, metrics)
         return None
 
     def propose_from_mcp_protocol_gap(self, matrix_report: dict[str, Any]) -> dict[str, Any] | None:
@@ -208,6 +210,50 @@ class PolicyCandidateService:
                     "recommendedChecks": [
                         "Inspect local manifests before editing dependency metadata.",
                         "Inspect local API surface before applying issue-derived upgrade advice.",
+                    ],
+                },
+            )
+        )
+        HybridRetriever(self._session).reindex_all()
+        return page_to_dict(page)
+
+    def _propose_red_green_churn_policy(
+        self,
+        run_id: str,
+        run: dict[str, Any],
+        metrics: dict[str, Any],
+    ) -> dict[str, Any]:
+        page = self._wiki.upsert_page(
+            WikiPageInput(
+                id=f"{RUN_POLICY_PREFIX}.{run_id.removeprefix('run.')}.red-green-churn",
+                type="policy",
+                title="Record red-green churn as a review signal before accepting interventions",
+                status="draft",
+                confidence="low",
+                summary=(
+                    "Runs that recover from failed verification should preserve the failure trail "
+                    "so reviewers can distinguish productive repair from trial-and-error churn."
+                ),
+                body=(
+                    "Draft policy candidate generated from a run with at least one failed "
+                    "verification followed by a passing final state. Review whether the failure "
+                    "was expected exploration or avoidable churn before accepting."
+                ),
+                metadata={
+                    "source": "run_summary",
+                    "run_id": run_id,
+                    "task": run.get("task"),
+                    "metrics": metrics,
+                    "trust": "requires_human_review",
+                    "review_required": True,
+                    "review": {
+                        "status": "needs_human_review",
+                        "required_before": "agent_decision_rule_use",
+                    },
+                    "recommendedChecks": [
+                        "Inspect failed verification output before accepting the final patch.",
+                        "Compare file edit count and retry count against similar passing runs.",
+                        "Record whether the final intervention is reusable or task-specific.",
                     ],
                 },
             )
