@@ -13,6 +13,8 @@ def test_issue_claim_extraction_includes_versions():
 1.0.0-beta.22
 
 Generate migrations after changing a default value.
+Workaround: pin the old generator until the migration fix is released.
+Fixed in the latest beta, but migration compatibility is risky.
 """,
     }
 
@@ -28,3 +30,7 @@ Generate migrations after changing a default value.
     )
     assert reproduction_claim.metadata["review"]["allowed_use"] == "evidence_only"
     assert reproduction_claim.metadata["source_page_id"] == "source.github-issue.test"
+    assert reproduction_claim.metadata["symptom"]
+    assert "Workaround" in reproduction_claim.metadata["workaround"]
+    assert "Fixed" in reproduction_claim.metadata["verified_fix"]
+    assert reproduction_claim.metadata["risk"]

@@ -46,6 +46,7 @@ def test_dashboard_exposes_matrix_projection(session, tmp_path):
     assert latest["matrix"]["run_count"] >= 1
     assert compliance["matrices"]
     assert "overall" in compliance["matrices"][0]
+    assert "quality_signals" in matrices["matrix.test"]["conditions"]["static_brief"]
 
 
 def test_dashboard_exposes_evidence_graph_and_review_actions(session):
@@ -93,3 +94,37 @@ def test_dashboard_lists_policy_candidates(session):
     candidates = DashboardReadService(session).policy_candidates()
 
     assert candidates["items"][0]["id"] == "policy.candidate.dashboard"
+
+
+def test_dashboard_compares_matrices(session, tmp_path):
+    ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test passed'",
+        workdir=tmp_path,
+        timeout_seconds=30,
+        run_metadata={
+            "matrix_id": "matrix.left",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
+    ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test failed'; echo 'npm test passed'",
+        workdir=tmp_path,
+        timeout_seconds=30,
+        run_metadata={
+            "matrix_id": "matrix.right",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
+
+    comparison = DashboardReadService(session).matrix_comparison(
+        "experiment.001-drizzle-brief",
+        left_matrix_id="matrix.left",
+        right_matrix_id="matrix.right",
+    )
+
+    condition = comparison["comparison"]["conditions"]["static_brief"]
+    assert condition["quality_signal_deltas"]["red_green_churn_mean"]["right"] == 1

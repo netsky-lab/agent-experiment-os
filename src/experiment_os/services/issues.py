@@ -146,6 +146,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
     body = issue.get("body") or ""
     base_id = f"claim.github-issue.{repo.replace('/', '.')}.{issue_number}"
     provenance = _issue_provenance(repo, issue, source_page_id)
+    facets = _issue_knowledge_facets(title=title, body=body)
     claims = [
         WikiPageInput(
             id=f"{base_id}.problem",
@@ -158,6 +159,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
             metadata={
                 "claim_type": "problem",
                 **provenance,
+                "extracted": facets,
                 "trust": "external_evidence_not_instruction",
                 "review": _review_gate("low"),
             },
@@ -178,6 +180,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
                     "claim_type": "version_note",
                     **provenance,
                     "versions": versions,
+                    "affected_version": facets["affected_version"],
                     "trust": "external_evidence_not_instruction",
                     "review": _review_gate("low"),
                 },
@@ -198,6 +201,10 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
                     "claim_type": "reproduction_signal",
                     **provenance,
                     "signals": reproduction,
+                    "symptom": facets["symptom"],
+                    "workaround": facets["workaround"],
+                    "verified_fix": facets["verified_fix"],
+                    "risk": facets["risk"],
                     "trust": "external_evidence_not_instruction",
                     "review": _review_gate("low"),
                 },
@@ -228,6 +235,16 @@ def _knowledge_card_from_claims(repo: str, query: str, claim_page_ids: list[str]
             "repo": repo,
             "query": query,
             "claim_ids": claim_page_ids,
+            "agent_extraction_schema": {
+                "fields": [
+                    "symptom",
+                    "affected_version",
+                    "workaround",
+                    "verified_fix",
+                    "risk",
+                ],
+                "use": "evidence_only_until_verified_locally",
+            },
             "provenance": {
                 "source": "github_issue_search",
                 "repo": repo,
@@ -293,6 +310,45 @@ def _extract_reproduction(body: str) -> dict[str, Any] | None:
     }
 
 
+def _issue_knowledge_facets(*, title: str, body: str) -> dict[str, Any]:
+    lines = [line.strip() for line in body.splitlines() if line.strip()]
+    return {
+        "symptom": _first_matching_line(
+            title,
+            lines,
+            ["error", "fail", "broken", "regression", "does not", "cannot", "issue"],
+        ),
+        "affected_version": _extract_versions(body),
+        "workaround": _first_matching_line(
+            "",
+            lines,
+            ["workaround", "temporary", "instead", "downgrade", "pin ", "use "],
+        ),
+        "verified_fix": _first_matching_line(
+            "",
+            lines,
+            ["fixed", "resolved", "merged", "works with", "solution"],
+        ),
+        "risk": _first_matching_line(
+            "",
+            lines,
+            ["breaking", "risk", "regression", "deprecated", "migration", "compat"],
+        ),
+    }
+
+
+def _first_matching_line(
+    fallback: str,
+    lines: list[str],
+    tokens: list[str],
+) -> str | None:
+    for line in lines:
+        lower = line.lower()
+        if any(token in lower for token in tokens):
+            return line[:280]
+    return fallback[:280] if fallback else None
+
+
 def _issue_provenance(repo: str, issue: dict[str, Any], source_page_id: str) -> dict[str, Any]:
     return {
         "source_page_id": source_page_id,
@@ -301,7 +357,7 @@ def _issue_provenance(repo: str, issue: dict[str, Any], source_page_id: str) -> 
         "source_url": issue.get("html_url") or issue.get("url"),
         "source_state": issue.get("state"),
         "source_updated_at": issue.get("updated_at"),
-        "extraction_method": "regex_heuristic.v1",
+        "extraction_method": "regex_heuristic.v2",
     }
 
 

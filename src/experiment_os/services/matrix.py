@@ -107,6 +107,42 @@ class ExperimentMatrixRunner:
             result_dir=result_dir,
         )
 
+    def run_nested_api_drift_matrix(
+        self,
+        *,
+        repeat_count: int = 1,
+        model: str | None = None,
+        models: list[str | None] | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/python-api-drift-nested-repo"),
+        include_mcp: bool = False,
+        include_gated: bool = True,
+        include_opencode: bool = True,
+        progress: Callable[[dict], None] | None = None,
+        write_result_artifact: bool = False,
+        result_dir: Path = Path("experiments/002-python-api-drift/results"),
+    ) -> dict:
+        return self._run_codex_matrix(
+            matrix_kind="api_drift_nested",
+            fixture_path=fixture_path,
+            repeat_count=repeat_count,
+            model=model,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            conditions=_api_drift_conditions(
+                include_mcp=include_mcp,
+                include_gated=include_gated,
+                include_opencode=include_opencode,
+            ),
+            progress=progress,
+            write_result_artifact=write_result_artifact,
+            result_dir=result_dir,
+        )
+
     def _run_codex_matrix(
         self,
         *,
@@ -264,7 +300,7 @@ class ExperimentMatrixRunner:
         run_metadata: dict,
     ) -> dict:
         if condition.agent_backend == "opencode":
-            if matrix_kind != "api_drift":
+            if not matrix_kind.startswith("api_drift"):
                 raise ValueError("OpenCode matrix conditions are only implemented for api_drift")
             return self._runner.run_opencode_api_drift(
                 condition_id=condition.condition_id,
@@ -766,7 +802,7 @@ def _matrix_title(matrix_kind: str) -> str:
 
 
 def _matrix_experiment_id(matrix_kind: str) -> str:
-    if matrix_kind == "api_drift":
+    if matrix_kind.startswith("api_drift"):
         return API_DRIFT_EXPERIMENT_ID
     return DRIZZLE_EXPERIMENT_ID
 

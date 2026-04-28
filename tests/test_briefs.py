@@ -58,3 +58,8 @@ def test_brief_compiler_returns_api_drift_knowledge_and_agent_context(session):
     assert any("vendor_sdk.py" in item for item in context["required_checks"])
     assert any("Do not edit tests" in item for item in context["forbidden_actions"])
     assert "claim.issue.example-llm-sdk.upgrade-advice" in context["knowledge_boundaries"]["evidence_only"]
+    presentation = context["presentation_contract"]
+    assert presentation["version"] == "agent_presentation_contract.v1"
+    assert "knowledge.python-api-drift-local-shim" in presentation["must_load"]
+    assert "dependsOn" in presentation
+    assert presentation["required_before_edit"]

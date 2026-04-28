@@ -83,6 +83,22 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/experiments/{experiment_id}/matrix/compare")
+    def compare_matrices(
+        experiment_id: str,
+        left_matrix_id: str,
+        right_matrix_id: str,
+    ) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).matrix_comparison(
+                    experiment_id,
+                    left_matrix_id=left_matrix_id,
+                    right_matrix_id=right_matrix_id,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.get("/runs/{run_id}")
     def run_detail(run_id: str) -> dict[str, Any]:
         with session_scope() as session:

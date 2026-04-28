@@ -21,6 +21,16 @@ def test_http_api_exposes_dashboard_read_models(session):
             "matrix_condition": "static_brief",
         },
     )
+    ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test failed'; echo 'npm test passed'",
+        workdir=Path("."),
+        run_metadata={
+            "matrix_id": "matrix.http-right",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
     brief = BriefCompiler(session).compile(
         BriefRequest(
             task="Fix Drizzle migration default behavior",
@@ -48,6 +58,13 @@ def test_http_api_exposes_dashboard_read_models(session):
     matrix = client.get("/experiments/experiment.001-drizzle-brief/matrix")
     latest_matrix = client.get("/experiments/experiment.001-drizzle-brief/matrix/latest")
     compliance = client.get("/experiments/experiment.001-drizzle-brief/protocol-compliance")
+    comparison = client.get(
+        "/experiments/experiment.001-drizzle-brief/matrix/compare",
+        params={
+            "left_matrix_id": "matrix.http",
+            "right_matrix_id": "matrix.http-right",
+        },
+    )
     policies = client.get("/policy-candidates")
 
     assert experiments.status_code == 200
@@ -60,6 +77,8 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert latest_matrix.json()["matrix"]["matrix_id"] == "matrix.http"
     assert compliance.status_code == 200
     assert compliance.json()["matrices"]
+    assert comparison.status_code == 200
+    assert comparison.json()["comparison"]["right_matrix_id"] == "matrix.http-right"
     assert policies.status_code == 200
     assert policies.json()["items"]
 
@@ -103,6 +122,7 @@ def test_http_api_exposes_agent_work_context_and_search(session):
     assert context_response.status_code == 200
     context = context_response.json()
     assert context["version"] == "agent_work_context.v1"
+    assert context["presentation_contract"]["must_load"]
     assert "knowledge.python-api-drift-local-shim" in context["required_load_order"]
     assert knowledge_response.status_code == 200
     assert knowledge_response.json()["results"]

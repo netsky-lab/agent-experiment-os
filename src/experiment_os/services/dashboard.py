@@ -7,6 +7,8 @@ from experiment_os.repositories.briefs import BriefRepository
 from experiment_os.repositories.runs import RunRepository
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.services.protocol import AgentWorkProtocol
+from experiment_os.services.protocol_contract import ProtocolComplianceCalculator
+from experiment_os.services.matrix_comparison import MatrixComparisonService
 from experiment_os.services.metrics import MetricsExtractor
 from experiment_os.services.review import ReviewService
 from experiment_os.services.serialization import (
@@ -27,6 +29,7 @@ class DashboardReadService:
         self._review = ReviewService(session)
         self._wiki = WikiRepository(session)
         self._protocol = AgentWorkProtocol(session)
+        self._compliance = ProtocolComplianceCalculator()
 
     def list_experiments(self) -> dict[str, Any]:
         experiments = []
@@ -127,10 +130,36 @@ class DashboardReadService:
                     "matrix_kind": item["matrix_kind"],
                     "latest_result_created_at": item["latest_result_created_at"],
                     "conditions": conditions,
-                    "overall": _overall_protocol_compliance(conditions),
+                    "overall": self._compliance.overall(conditions).as_dict(),
                 }
             )
         return {"experiment_id": experiment_id, "matrices": matrices}
+
+    def matrix_comparison(
+        self,
+        experiment_id: str,
+        *,
+        left_matrix_id: str,
+        right_matrix_id: str,
+    ) -> dict[str, Any]:
+        matrices = {
+            item["matrix_id"]: item
+            for item in self.experiment_matrix(experiment_id)["matrices"]
+        }
+        missing = [
+            matrix_id
+            for matrix_id in (left_matrix_id, right_matrix_id)
+            if matrix_id not in matrices
+        ]
+        if missing:
+            raise ValueError(f"Unknown matrix_id(s): {', '.join(missing)}")
+        return {
+            "experiment_id": experiment_id,
+            "comparison": MatrixComparisonService().compare(
+                left=matrices[left_matrix_id],
+                right=matrices[right_matrix_id],
+            ),
+        }
 
     def run_detail(self, run_id: str) -> dict[str, Any]:
         run = self._runs.get_run(run_id)
@@ -239,6 +268,7 @@ def _condition_projection(condition_results: list) -> dict[str, Any]:
         ],
         "metrics": metrics,
         "protocol_compliance": _protocol_compliance(metrics),
+        "quality_signals": _quality_signals(metrics),
     }
 
 
@@ -279,11 +309,23 @@ def _latest_result_created_at(results: list) -> str | None:
 
 
 def _protocol_compliance(metrics: dict[str, dict]) -> dict[str, Any]:
+    return ProtocolComplianceCalculator().condition_compliance(metrics)
+
+
+def _quality_signals(metrics: dict[str, dict]) -> dict[str, Any]:
+    test_failure_mean = _metric_mean(metrics, "test_failure_count")
+    pass_rate = _metric_rate(metrics, "tests_passing")
+    forbidden_edit_mean = _metric_mean(metrics, "forbidden_edit_count")
+    wrong_file_mean = _metric_mean(metrics, "wrong_file_edits")
     return {
-        "pre_work_rate": _metric_rate(metrics, "mcp_pre_work_protocol_called"),
-        "dependency_graph_rate": _metric_rate(metrics, "mcp_dependency_graph_loaded"),
-        "final_answer_rate": _metric_rate(metrics, "mcp_final_answer_recorded"),
-        "summary_rate": _metric_rate(metrics, "mcp_summary_requested"),
+        "red_green_churn_mean": test_failure_mean,
+        "clean_pass_rate": _clean_pass_rate(pass_rate, test_failure_mean),
+        "forbidden_edit_mean": forbidden_edit_mean,
+        "wrong_file_edit_mean": wrong_file_mean,
+        "needs_review": any(
+            value is not None and value > 0
+            for value in [test_failure_mean, forbidden_edit_mean, wrong_file_mean]
+        ),
     }
 
 
@@ -295,26 +337,17 @@ def _metric_rate(metrics: dict[str, dict], key: str) -> float | None:
     return float(rate) if isinstance(rate, int | float) else None
 
 
-def _overall_protocol_compliance(conditions: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    gated = {
-        condition: values
-        for condition, values in conditions.items()
-        if "gated" in condition
-    }
-    values = gated or conditions
-    rates = [
-        rate
-        for condition_values in values.values()
-        for rate in condition_values.values()
-        if isinstance(rate, int | float)
-    ]
-    return {
-        "condition_count": len(values),
-        "mean_rate": sum(rates) / len(rates) if rates else None,
-        "all_pre_work_loaded": all(
-            condition_values.get("pre_work_rate") == 1
-            for condition_values in values.values()
-        )
-        if values
-        else False,
-    }
+def _metric_mean(metrics: dict[str, dict], key: str) -> float | None:
+    value = metrics.get(key)
+    if not isinstance(value, dict):
+        return None
+    mean = value.get("mean")
+    return float(mean) if isinstance(mean, int | float) else None
+
+
+def _clean_pass_rate(pass_rate: float | None, test_failure_mean: float | None) -> float | None:
+    if pass_rate is None:
+        return None
+    if test_failure_mean is None:
+        return pass_rate
+    return pass_rate if test_failure_mean == 0 else 0.0
