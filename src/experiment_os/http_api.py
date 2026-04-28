@@ -9,9 +9,12 @@ from pathlib import Path
 from experiment_os.database import check_database, session_scope
 from experiment_os.domain.schemas import BriefRequest
 from experiment_os.retrieval.hybrid import HybridRetriever
+from experiment_os.services.agent_actions import AgentActionService
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.completion import CompletionContractService
 from experiment_os.services.dashboard import DashboardReadService
+from experiment_os.services.experiment_lifecycle import ExperimentLifecycleService
+from experiment_os.services.issues import GitHubIssueIngestor
 from experiment_os.services.provenance import ProvenanceService
 from experiment_os.services.protocol import AgentWorkProtocol
 from experiment_os.services.review import ReviewService
@@ -28,6 +31,15 @@ class PromotionRequest(BaseModel):
     title: str | None = None
     applies_to: dict[str, Any] | None = None
     mitigates: list[str] = Field(default_factory=list)
+
+
+class ExperimentStatusUpdate(BaseModel):
+    status: str
+    rationale: str | None = None
+
+
+class VersionAlignmentRequest(BaseModel):
+    local_versions: dict[str, str] = Field(default_factory=dict)
 
 
 class KnowledgeSearchRequest(BaseModel):
@@ -126,6 +138,37 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/experiments/{experiment_id}/matrix/regression")
+    def matrix_regression(
+        experiment_id: str,
+        left_matrix_id: str,
+        right_matrix_id: str,
+    ) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).matrix_regression(
+                    experiment_id,
+                    left_matrix_id=left_matrix_id,
+                    right_matrix_id=right_matrix_id,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/experiments/{experiment_id}/status")
+    def set_experiment_status(
+        experiment_id: str,
+        update: ExperimentStatusUpdate,
+    ) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return ExperimentLifecycleService(session).set_status(
+                    experiment_id,
+                    update.status,
+                    rationale=update.rationale,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
+
     @app.get("/runs/{run_id}")
     def run_detail(run_id: str) -> dict[str, Any]:
         with session_scope() as session:
@@ -147,6 +190,14 @@ def create_app() -> FastAPI:
         with session_scope() as session:
             try:
                 return CompletionContractService(session).validate(run_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/runs/{run_id}/next-required-action")
+    def run_next_required_action(run_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return AgentActionService(session).next_required_action(run_id)
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -237,6 +288,20 @@ def create_app() -> FastAPI:
             )
             return {"query": query, "results": results}
 
+    @app.post("/issue-knowledge/{page_id}/version-alignment")
+    def issue_version_alignment(
+        page_id: str,
+        request: VersionAlignmentRequest,
+    ) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return GitHubIssueIngestor(session).version_alignment(
+                    page_id=page_id,
+                    local_versions=request.local_versions,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.get("/review-queue")
     def review_queue(limit: int = 50) -> dict[str, Any]:
         with session_scope() as session:
@@ -275,6 +340,21 @@ def create_app() -> FastAPI:
                 return ProvenanceService(session).page_provenance(page_id)
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/wiki/graph")
+    def wiki_graph() -> dict[str, Any]:
+        with session_scope() as session:
+            return DashboardReadService(session).wiki_graph()
+
+    @app.get("/knowledge/stale")
+    def stale_knowledge() -> dict[str, Any]:
+        with session_scope() as session:
+            return DashboardReadService(session).stale_knowledge()
+
+    @app.get("/knowledge/duplicates")
+    def duplicate_knowledge() -> dict[str, Any]:
+        with session_scope() as session:
+            return DashboardReadService(session).duplicate_knowledge()
 
     @app.get("/ui/contract")
     def ui_contract() -> dict[str, Any]:

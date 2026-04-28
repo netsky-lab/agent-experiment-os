@@ -12,7 +12,9 @@ from experiment_os.mcp_server import create_mcp_server
 from experiment_os.mcp_server.client_smoke import run_mcp_smoke
 from experiment_os.retrieval.hybrid import HybridRetriever
 from experiment_os.services.briefs import BriefCompiler
+from experiment_os.services.dashboard import DashboardReadService
 from experiment_os.services.dependencies import DependencyResolver
+from experiment_os.services.experiment_lifecycle import ExperimentLifecycleService
 from experiment_os.services.experiments import ExperimentRunner
 from experiment_os.services.issues import GitHubIssueIngestor
 from experiment_os.services.matrix import ExperimentMatrixRunner
@@ -227,11 +229,74 @@ def issues_batch(
     typer.echo(json.dumps({"jobs": len(results), "results": results}, indent=2))
 
 
+@issues_app.command("refresh")
+def issues_refresh(
+    repo: str = typer.Option(..., help="GitHub repo in owner/name form."),
+    query: str = typer.Option(..., help="GitHub issue search query."),
+    limit: int = typer.Option(5, help="Maximum number of issues to refresh."),
+) -> None:
+    """Refresh issue-derived knowledge from GitHub using GITHUB_TOKEN when available."""
+    with session_scope() as session:
+        result = GitHubIssueIngestor(session).refresh(repo=repo, query=query, limit=limit)
+    typer.echo(json.dumps(result, indent=2))
+
+
+@issues_app.command("version-alignment")
+def issues_version_alignment(
+    page_id: str = typer.Option(..., help="Issue claim/source page id."),
+    local_version: list[str] | None = typer.Option(
+        None,
+        "--local-version",
+        help="Package=version pair. Repeat for several packages.",
+    ),
+) -> None:
+    """Compare issue-derived affected versions against local project versions."""
+    versions = dict(_split_pair(item) for item in (local_version or []))
+    with session_scope() as session:
+        result = GitHubIssueIngestor(session).version_alignment(
+            page_id=page_id,
+            local_versions=versions,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @experiments_app.command("seed-drizzle")
 def experiments_seed_drizzle() -> None:
     """Seed the first Drizzle brief experiment definition."""
     with session_scope() as session:
         result = ExperimentRunner(session).seed_drizzle_experiment()
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("set-status")
+def experiments_set_status(
+    experiment_id: str,
+    status: str,
+    rationale: str | None = typer.Option(None, help="Status transition rationale."),
+) -> None:
+    """Move an experiment through draft/running/interpreted/archived lifecycle."""
+    with session_scope() as session:
+        result = ExperimentLifecycleService(session).set_status(
+            experiment_id,
+            status,
+            rationale=rationale,
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("compare-matrices")
+def experiments_compare_matrices(
+    experiment_id: str,
+    left_matrix_id: str,
+    right_matrix_id: str,
+) -> None:
+    """Compare two matrix ids and include regression signals."""
+    with session_scope() as session:
+        result = DashboardReadService(session).matrix_regression(
+            experiment_id,
+            left_matrix_id=left_matrix_id,
+            right_matrix_id=right_matrix_id,
+        )
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -702,3 +767,10 @@ def api_serve(
     import uvicorn
 
     uvicorn.run("experiment_os.http_api:app", host=host, port=port, reload=reload)
+
+
+def _split_pair(value: str) -> tuple[str, str]:
+    if "=" not in value:
+        raise typer.BadParameter("Expected Package=version")
+    key, version = value.split("=", 1)
+    return key, version

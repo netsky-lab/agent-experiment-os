@@ -11,6 +11,8 @@ from experiment_os.services.protocol_contract import ProtocolComplianceCalculato
 from experiment_os.services.matrix_comparison import MatrixComparisonService
 from experiment_os.services.churn import ChurnDrillDownService
 from experiment_os.services.metrics import MetricsExtractor
+from experiment_os.services.regression import RegressionDetector
+from experiment_os.services.wiki_health import WikiHealthService
 from experiment_os.services.review import ReviewService
 from experiment_os.services.serialization import (
     artifact_to_dict,
@@ -24,6 +26,7 @@ class DashboardReadService:
     """Backend read contract for the future product UI."""
 
     def __init__(self, session: Session) -> None:
+        self._session = session
         self._experiments = ExperimentRepository(session)
         self._briefs = BriefRepository(session)
         self._runs = RunRepository(session)
@@ -181,6 +184,24 @@ class DashboardReadService:
             ),
         }
 
+    def matrix_regression(
+        self,
+        experiment_id: str,
+        *,
+        left_matrix_id: str,
+        right_matrix_id: str,
+    ) -> dict[str, Any]:
+        comparison = self.matrix_comparison(
+            experiment_id,
+            left_matrix_id=left_matrix_id,
+            right_matrix_id=right_matrix_id,
+        )["comparison"]
+        return {
+            "experiment_id": experiment_id,
+            "comparison": comparison,
+            "regression": RegressionDetector().detect(comparison),
+        }
+
     def run_detail(self, run_id: str) -> dict[str, Any]:
         run = self._runs.get_run(run_id)
         if run is None:
@@ -306,12 +327,26 @@ class DashboardReadService:
             "experiment": detail["experiment"],
             "latest_matrix": latest_matrix["matrix"],
             "latest_comparison": comparison["comparison"],
+            "latest_regression": (
+                RegressionDetector().detect(comparison["comparison"])
+                if comparison["comparison"]
+                else None
+            ),
             "protocol_compliance": compliance["matrices"],
             "latest_churn_runs": churn["items"],
             "policy_candidate_categories": self.policy_candidate_categories(limit=20)[
                 "categories"
             ],
         }
+
+    def wiki_graph(self) -> dict[str, Any]:
+        return WikiHealthService(self._session).graph()
+
+    def stale_knowledge(self) -> dict[str, Any]:
+        return WikiHealthService(self._session).stale_pages()
+
+    def duplicate_knowledge(self) -> dict[str, Any]:
+        return WikiHealthService(self._session).duplicate_candidates()
 
     def ui_bootstrap(self, *, experiment_id: str | None = None) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -321,6 +356,8 @@ class DashboardReadService:
             "policy_candidate_categories": self.policy_candidate_categories(limit=20)[
                 "categories"
             ],
+            "stale_knowledge": self.stale_knowledge()["items"][:10],
+            "duplicate_knowledge": self.duplicate_knowledge()["items"][:10],
         }
         if experiment_id is not None:
             payload["story"] = self.experiment_story(experiment_id)
@@ -404,6 +441,11 @@ class DashboardReadService:
                     "purpose": "Pick the latest two matrices for UI comparison without requiring ids upfront.",
                 },
                 {
+                    "id": "MatrixRegression",
+                    "endpoint": "GET /experiments/{experiment_id}/matrix/regression",
+                    "purpose": "Detect regressions in clean pass, churn, forbidden edits, wrong-file edits, and protocol compliance.",
+                },
+                {
                     "id": "ExperimentStory",
                     "endpoint": "GET /experiments/{experiment_id}/story",
                     "purpose": "Assemble the experiment hypothesis, latest matrix, protocol compliance, churn, and review work into one read model.",
@@ -437,6 +479,16 @@ class DashboardReadService:
                     "id": "AgentContract",
                     "endpoint": "GET /briefs/{brief_id}/agent-work-context",
                     "purpose": "Show must-load knowledge, dependsOn edges, decision rules, and evidence boundaries.",
+                },
+                {
+                    "id": "WikiGraph",
+                    "endpoint": "GET /wiki/graph",
+                    "purpose": "Show knowledge pages and dependsOn/provenance edges.",
+                },
+                {
+                    "id": "KnowledgeHealth",
+                    "endpoint": "GET /knowledge/stale and GET /knowledge/duplicates",
+                    "purpose": "Find stale or duplicate knowledge before it becomes an agent decision rule.",
                 },
                 {
                     "id": "DashboardBootstrap",

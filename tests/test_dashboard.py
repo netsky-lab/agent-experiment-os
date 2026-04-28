@@ -177,9 +177,15 @@ def test_dashboard_compares_matrices(session, tmp_path):
         left_matrix_id="matrix.left",
         right_matrix_id="matrix.right",
     )
+    regression = DashboardReadService(session).matrix_regression(
+        "experiment.001-drizzle-brief",
+        left_matrix_id="matrix.left",
+        right_matrix_id="matrix.right",
+    )
 
     condition = comparison["comparison"]["conditions"]["static_brief"]
     assert condition["quality_signal_deltas"]["red_green_churn_mean"]["right"] == 1
+    assert regression["regression"]["status"] == "regressed"
 
 
 def test_dashboard_exposes_churn_drill_down(session, tmp_path):

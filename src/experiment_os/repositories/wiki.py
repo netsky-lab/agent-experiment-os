@@ -99,6 +99,12 @@ class WikiRepository:
             stmt = stmt.where(WikiEdge.edge_type == edge_type)
         return self._session.scalars(stmt.order_by(WikiEdge.target_page_id)).all()
 
+    def list_edges_to(self, page_id: str, edge_type: str | None = None) -> list[WikiEdge]:
+        stmt: Select[tuple[WikiEdge]] = select(WikiEdge).where(WikiEdge.target_page_id == page_id)
+        if edge_type:
+            stmt = stmt.where(WikiEdge.edge_type == edge_type)
+        return self._session.scalars(stmt.order_by(WikiEdge.source_page_id)).all()
+
     def list_edges_from_many(
         self,
         page_ids: Iterable[str],

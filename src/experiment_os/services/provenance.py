@@ -15,8 +15,11 @@ class ProvenanceService:
         if page is None:
             raise ValueError(f"Unknown page_id: {page_id}")
         outgoing = self._wiki.list_edges_from(page_id)
+        incoming = self._wiki.list_edges_to(page_id)
         targets = self._wiki.get_pages(edge.target_page_id for edge in outgoing)
+        sources = self._wiki.get_pages(edge.source_page_id for edge in incoming)
         target_by_id = {target.id: target for target in targets}
+        source_by_id = {source.id: source for source in sources}
         return {
             "page": page_to_dict(page, include_body=True),
             "edges": [
@@ -28,10 +31,24 @@ class ProvenanceService:
                 }
                 for edge in outgoing
             ],
+            "inbound_edges": [
+                {
+                    "source": edge.source_page_id,
+                    "target": edge.target_page_id,
+                    "type": edge.edge_type,
+                    "metadata": edge.edge_metadata,
+                }
+                for edge in incoming
+            ],
             "dependencies": [
                 page_to_dict(target_by_id[edge.target_page_id])
                 for edge in outgoing
                 if edge.target_page_id in target_by_id
+            ],
+            "referenced_by": [
+                page_to_dict(source_by_id[edge.source_page_id])
+                for edge in incoming
+                if edge.source_page_id in source_by_id
             ],
             "freshness": _freshness(page.page_metadata),
         }

@@ -256,6 +256,23 @@ docker compose run --rm app uv run experiment-os issues batch \
   --config research/issues/issue-ingestion-batch.example.json
 ```
 
+Refresh issue-derived knowledge from GitHub. If `GITHUB_TOKEN` is present it is used for the API call:
+
+```bash
+docker compose run --rm app uv run experiment-os issues refresh \
+  --repo openai/openai-python \
+  --query "responses migration" \
+  --limit 5
+```
+
+Check whether issue-derived version evidence matches the local project:
+
+```bash
+docker compose run --rm app uv run experiment-os issues version-alignment \
+  --page-id claim.github-issue.drizzle-team.drizzle-orm.5661.versions \
+  --local-version drizzle-orm=0.44.5
+```
+
 Prune local test pages from a dev database:
 
 ```bash
@@ -285,14 +302,21 @@ Useful UI/read-model endpoints:
 - `GET /experiments`
 - `GET /experiments/{experiment_id}/matrix`
 - `GET /experiments/{experiment_id}/matrix/compare?left_matrix_id=...&right_matrix_id=...`
+- `GET /experiments/{experiment_id}/matrix/regression?left_matrix_id=...&right_matrix_id=...`
+- `POST /experiments/{experiment_id}/status`
 - `GET /experiments/{experiment_id}/protocol-compliance`
 - `GET /experiments/{experiment_id}/churn?matrix_id=...`
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/completion-contract`
+- `GET /runs/{run_id}/next-required-action`
 - `GET /runs/{run_id}/churn`
 - `GET /briefs/{brief_id}/agent-work-context`
 - `GET /briefs/{brief_id}/presentation-preview`
+- `GET /wiki/graph`
+- `GET /knowledge/stale`
+- `GET /knowledge/duplicates`
 - `GET /pages/{page_id}/provenance`
+- `POST /issue-knowledge/{page_id}/version-alignment`
 - `GET /policy-candidates`
 - `GET /ui/contract`
 - `GET /ui/bootstrap`
@@ -311,7 +335,7 @@ The v0 backend is split by responsibility:
 - `src/experiment_os/domain/` - Pydantic input/output schemas.
 - `src/experiment_os/repositories/` - database access.
 - `src/experiment_os/retrieval/` - full-text + pgvector retrieval.
-- `src/experiment_os/services/` - application use cases.
+- `src/experiment_os/services/` - application use cases, split into contracts, matrix comparison, regression, provenance, issue ingestion, review, and dashboard read models.
 - `src/experiment_os/mcp_server/` - MCP transport adapter.
 - `src/experiment_os/cli.py` - developer CLI only.
 

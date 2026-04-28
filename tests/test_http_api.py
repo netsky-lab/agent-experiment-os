@@ -69,6 +69,13 @@ def test_http_api_exposes_dashboard_read_models(session):
             "right_matrix_id": "matrix.http-right",
         },
     )
+    regression = client.get(
+        "/experiments/experiment.001-drizzle-brief/matrix/regression",
+        params={
+            "left_matrix_id": "matrix.http",
+            "right_matrix_id": "matrix.http-right",
+        },
+    )
     policies = client.get("/policy-candidates")
     churn = client.get(
         "/experiments/experiment.001-drizzle-brief/churn",
@@ -81,6 +88,9 @@ def test_http_api_exposes_dashboard_read_models(session):
         "/ui/bootstrap",
         params={"experiment_id": "experiment.001-drizzle-brief"},
     )
+    wiki_graph = client.get("/wiki/graph")
+    stale = client.get("/knowledge/stale")
+    duplicates = client.get("/knowledge/duplicates")
     app_index = client.get("/app/")
 
     assert experiments.status_code == 200
@@ -99,6 +109,8 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert compliance.json()["matrices"]
     assert comparison.status_code == 200
     assert comparison.json()["comparison"]["right_matrix_id"] == "matrix.http-right"
+    assert regression.status_code == 200
+    assert regression.json()["regression"]["status"] == "regressed"
     assert policies.status_code == 200
     assert policies.json()["items"]
     assert churn.status_code == 200
@@ -113,6 +125,12 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert ui_bootstrap.status_code == 200
     assert ui_bootstrap.json()["contract"]["version"] == "ui_contract.v1"
     assert ui_bootstrap.json()["story"]["experiment"]["id"] == "experiment.001-drizzle-brief"
+    assert wiki_graph.status_code == 200
+    assert wiki_graph.json()["nodes"]
+    assert stale.status_code == 200
+    assert "items" in stale.json()
+    assert duplicates.status_code == 200
+    assert "items" in duplicates.json()
     assert app_index.status_code == 200
     assert "Agent Experiment OS" in app_index.text
 
@@ -172,6 +190,26 @@ def test_http_api_exposes_agent_work_context_and_search(session):
     )
 
 
+def test_http_api_exposes_lifecycle_and_issue_version_alignment(session):
+    ExperimentRunner(session).seed_drizzle_experiment()
+    session.commit()
+    client = TestClient(create_app())
+
+    status = client.post(
+        "/experiments/experiment.001-drizzle-brief/status",
+        json={"status": "running", "rationale": "Matrix started."},
+    )
+    alignment = client.post(
+        "/issue-knowledge/claim.github-issue.drizzle-team.drizzle-orm.5661.versions/version-alignment",
+        json={"local_versions": {"drizzle-orm": "0.44.5"}},
+    )
+
+    assert status.status_code == 200
+    assert status.json()["status"] == "running"
+    assert alignment.status_code == 200
+    assert alignment.json()["status"] == "mismatch"
+
+
 def test_http_api_exposes_run_completion_and_page_provenance(session, tmp_path):
     result = ExperimentRunner(session).run_shell_condition(
         condition_id="condition.001-drizzle-brief-assisted",
@@ -198,11 +236,14 @@ def test_http_api_exposes_run_completion_and_page_provenance(session, tmp_path):
     client = TestClient(create_app())
 
     completion = client.get(f"/runs/{result['run']['run_id']}/completion-contract")
+    next_action = client.get(f"/runs/{result['run']['run_id']}/next-required-action")
     provenance = client.get("/pages/source.test.provenance/provenance")
 
     assert completion.status_code == 200
     assert completion.json()["status"] == "failed"
     assert "pre_work_missing" in completion.json()["violations"]
+    assert next_action.status_code == 200
+    assert next_action.json()["next_action"]["id"] == "start_pre_work_protocol"
     assert provenance.status_code == 200
     assert provenance.json()["freshness"]["stale_warning"] is True
 

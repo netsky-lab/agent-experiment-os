@@ -8,11 +8,14 @@ from experiment_os.domain.schemas import BriefRequest, RunEventInput, RunStartIn
 from experiment_os.repositories.briefs import BriefRepository
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.retrieval.hybrid import HybridRetriever
+from experiment_os.services.agent_actions import AgentActionService
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.completion import CompletionContractService
 from experiment_os.services.dependencies import DependencyResolver
 from experiment_os.services.event_contract import AgentEventContract, event_contract_prompt
+from experiment_os.services.issues import GitHubIssueIngestor
 from experiment_os.services.policy_candidates import PolicyCandidateService
+from experiment_os.services.provenance import ProvenanceService
 from experiment_os.services.protocol import AgentWorkProtocol
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.serialization import brief_to_dict, page_to_dict
@@ -208,6 +211,27 @@ def create_mcp_server() -> FastMCP:
             return RunRecorder(session).record_event(data)
 
     @mcp.tool()
+    def record_decision(
+        run_id: str,
+        decision: str,
+        rationale: str,
+        evidence_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Record an explicit agent decision before edits or risky actions."""
+        data = RunEventInput(
+            run_id=run_id,
+            event_type="decision_recorded",
+            payload={
+                "decision": decision,
+                "rationale": rationale,
+                "evidence_ids": evidence_ids or [],
+                "source": "mcp.record_decision",
+            },
+        )
+        with session_scope() as session:
+            return RunRecorder(session).record_event(data)
+
+    @mcp.tool()
     def summarize_run(run_id: str) -> dict[str, Any]:
         """Return a compact run summary with recorded events."""
         with session_scope() as session:
@@ -218,6 +242,12 @@ def create_mcp_server() -> FastMCP:
         """Validate whether a run satisfied the strict Experiment OS completion contract."""
         with session_scope() as session:
             return CompletionContractService(session).validate(run_id)
+
+    @mcp.tool()
+    def get_next_required_action(run_id: str) -> dict[str, Any]:
+        """Return the next strict protocol action the agent should perform."""
+        with session_scope() as session:
+            return AgentActionService(session).next_required_action(run_id)
 
     @mcp.tool()
     def complete_run(
@@ -245,6 +275,24 @@ def create_mcp_server() -> FastMCP:
             summary = RunRecorder(session).summarize_run(run_id)
             candidate = PolicyCandidateService(session).propose_from_run_summary(summary)
             return {"run_id": run_id, "candidate": candidate}
+
+    @mcp.tool()
+    def page_provenance(page_id: str) -> dict[str, Any]:
+        """Return outgoing and incoming provenance for a wiki page."""
+        with session_scope() as session:
+            return ProvenanceService(session).page_provenance(page_id)
+
+    @mcp.tool()
+    def check_issue_version_alignment(
+        page_id: str,
+        local_versions: dict[str, str],
+    ) -> dict[str, Any]:
+        """Compare issue-derived version signals against local project versions."""
+        with session_scope() as session:
+            return GitHubIssueIngestor(session).version_alignment(
+                page_id=page_id,
+                local_versions=local_versions,
+            )
 
     @mcp.resource("wiki://pages/{page_id}")
     def wiki_page(page_id: str) -> str:

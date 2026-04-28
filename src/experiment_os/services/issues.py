@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -85,16 +86,60 @@ class GitHubIssueIngestor:
             **reindex,
         }
 
+    def refresh(self, *, repo: str, query: str, limit: int = 5) -> dict[str, Any]:
+        return self.ingest(repo=repo, query=query, limit=limit)
+
+    def version_alignment(
+        self,
+        *,
+        page_id: str,
+        local_versions: dict[str, str],
+    ) -> dict[str, Any]:
+        page = self._wiki.get_page(page_id)
+        if page is None:
+            raise ValueError(f"Unknown page_id: {page_id}")
+        issue_versions = page.page_metadata.get("versions")
+        if not issue_versions:
+            issue_versions = page.page_metadata.get("affected_version", {})
+        mismatches = []
+        matches = []
+        for package, issue_version in issue_versions.items():
+            local_version = local_versions.get(package)
+            if local_version is None:
+                continue
+            item = {
+                "package": package,
+                "issue_version": issue_version,
+                "local_version": local_version,
+            }
+            if str(local_version) == str(issue_version):
+                matches.append(item)
+            else:
+                mismatches.append(item)
+        return {
+            "page_id": page_id,
+            "status": "aligned" if issue_versions and not mismatches else "mismatch",
+            "issue_versions": issue_versions,
+            "local_versions": local_versions,
+            "matches": matches,
+            "mismatches": mismatches,
+            "allowed_use": "evidence_only" if mismatches else page.page_metadata.get("allowed_use"),
+        }
+
 
 def _search_github_issues(*, repo: str, query: str, limit: int) -> list[dict[str, Any]]:
     search = f"repo:{repo} type:issue {query}".strip()
     params = urllib.parse.urlencode({"q": search, "per_page": min(limit, 20)})
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "experiment-os-research",
+    }
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(
         f"https://api.github.com/search/issues?{params}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "experiment-os-research",
-        },
+        headers=headers,
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         payload = json.loads(response.read().decode("utf-8"))

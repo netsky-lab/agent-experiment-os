@@ -71,3 +71,32 @@ Workaround: inspect local response parsing before changing app code.
     assert card.page_metadata["allowed_use"] == "evidence_only"
     assert version_claim is not None
     assert version_claim.page_metadata["allowed_use"] == "evidence_only"
+
+
+def test_issue_version_alignment_detects_mismatch(session):
+    GitHubIssueIngestor(session).ingest(
+        repo="drizzle-team/drizzle-orm",
+        query="migration default",
+        issues=[
+            {
+                "number": 5661,
+                "title": "Migration default regression",
+                "body": """
+### What version of `drizzle-orm` are you using?
+1.0.0-beta.22
+""",
+                "html_url": "https://github.com/drizzle-team/drizzle-orm/issues/5661",
+                "url": "https://api.github.com/repos/drizzle-team/drizzle-orm/issues/5661",
+                "state": "open",
+                "labels": [{"name": "bug"}],
+            }
+        ],
+    )
+
+    result = GitHubIssueIngestor(session).version_alignment(
+        page_id="claim.github-issue.drizzle-team.drizzle-orm.5661.versions",
+        local_versions={"drizzle-orm": "0.44.5"},
+    )
+
+    assert result["status"] == "mismatch"
+    assert result["mismatches"][0]["package"] == "drizzle-orm"

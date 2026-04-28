@@ -1,9 +1,11 @@
-const state = { view: "experiments", data: null };
+const state = { view: "experiments", data: null, graph: null };
 
 async function load() {
   const response = await fetch("/ui/bootstrap");
   if (!response.ok) throw new Error(`Bootstrap failed: ${response.status}`);
   state.data = await response.json();
+  const graphResponse = await fetch("/wiki/graph");
+  if (graphResponse.ok) state.graph = await graphResponse.json();
   render();
 }
 
@@ -24,6 +26,8 @@ function render() {
     review: ["Review", "Draft policies and issue-derived knowledge waiting for evidence."],
     runs: ["Runs", "Recent churn and verification work."],
     contract: ["Agent Contract", "Backend surfaces available to the product UI and MCP agents."],
+    knowledge: ["Knowledge", "Freshness, duplicates, and review boundaries for agent memory."],
+    graph: ["Graph", "Wiki pages and dependsOn/provenance edges."],
   };
   document.getElementById("title").textContent = titles[state.view][0];
   document.getElementById("subtitle").textContent = titles[state.view][1];
@@ -32,7 +36,10 @@ function render() {
 
 const views = {
   experiments(data) {
-    return `<div class="grid">${data.experiments.map(experimentCard).join("")}</div>`;
+    return `<div class="stack">
+      ${data.story ? story(data.story) : ""}
+      <div class="grid">${data.experiments.map(experimentCard).join("")}</div>
+    </div>`;
   },
   review(data) {
     const rows = data.review_queue.map((item) => `
@@ -57,7 +64,59 @@ const views = {
   contract(data) {
     return `<pre>${escapeHtml(JSON.stringify(data.contract, null, 2))}</pre>`;
   },
+  knowledge(data) {
+    const stale = data.stale_knowledge || [];
+    const duplicates = data.duplicate_knowledge || [];
+    return `<div class="split">
+      <section>
+        <h2 class="section-title">Stale Signals</h2>
+        <div class="stack">${stale.map(staleCard).join("") || empty("No stale source-backed pages detected.")}</div>
+      </section>
+      <section>
+        <h2 class="section-title">Duplicate Candidates</h2>
+        <div class="stack">${duplicates.map(duplicateCard).join("") || empty("No duplicate knowledge candidates detected.")}</div>
+      </section>
+    </div>`;
+  },
+  graph() {
+    const graph = state.graph || { nodes: [], edges: [] };
+    const nodes = graph.nodes.slice(0, 80).map((node) => `
+      <tr>
+        <td>${escapeHtml(node.id)}</td>
+        <td>${escapeHtml(node.type)}</td>
+        <td>${escapeHtml(node.status)}</td>
+        <td>${escapeHtml(node.title)}</td>
+      </tr>
+    `).join("");
+    const edges = graph.edges.slice(0, 120).map((edge) => `
+      <tr>
+        <td>${escapeHtml(edge.source)}</td>
+        <td>${escapeHtml(edge.type)}</td>
+        <td>${escapeHtml(edge.target)}</td>
+      </tr>
+    `).join("");
+    return `<div class="split">
+      <section><h2 class="section-title">Pages</h2><table class="table"><thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Title</th></tr></thead><tbody>${nodes}</tbody></table></section>
+      <section><h2 class="section-title">Edges</h2><table class="table"><thead><tr><th>Source</th><th>Type</th><th>Target</th></tr></thead><tbody>${edges}</tbody></table></section>
+    </div>`;
+  },
 };
+
+function story(item) {
+  const regression = item.latest_regression;
+  return `<section class="summary-band">
+    <div>
+      <span class="eyebrow">Latest story</span>
+      <h2>${escapeHtml(item.experiment.title)}</h2>
+      <p>${escapeHtml(item.experiment.hypothesis)}</p>
+    </div>
+    <div class="kpis">
+      <div><strong>${item.latest_matrix ? item.latest_matrix.run_count : 0}</strong><span>runs</span></div>
+      <div><strong>${item.latest_churn_runs.length}</strong><span>review runs</span></div>
+      <div><strong>${regression ? regression.status : "n/a"}</strong><span>regression</span></div>
+    </div>
+  </section>`;
+}
 
 function experimentCard(item) {
   return `
@@ -71,6 +130,27 @@ function experimentCard(item) {
       </div>
     </article>
   `;
+}
+
+function staleCard(item) {
+  const page = item.page;
+  const freshness = item.freshness;
+  return `<article class="card">
+    <h3>${escapeHtml(page.title)}</h3>
+    <p>${escapeHtml(page.id)}</p>
+    <div class="meta">
+      <span class="pill warn">stale</span>
+      <span class="pill">${escapeHtml(freshness.allowed_use || "unknown")}</span>
+    </div>
+  </article>`;
+}
+
+function duplicateCard(item) {
+  return `<article class="card">
+    <h3>${escapeHtml(item.fingerprint)}</h3>
+    <p>${item.pages.length} page(s) share this title fingerprint.</p>
+    <div class="meta">${item.pages.map((page) => `<span class="pill">${escapeHtml(page.id)}</span>`).join("")}</div>
+  </article>`;
 }
 
 function empty(message) {

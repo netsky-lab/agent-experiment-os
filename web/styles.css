@@ -88,10 +88,72 @@ p {
   padding: 24px 28px;
 }
 
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 14px;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.summary-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.summary-band h2 {
+  margin: 2px 0 6px;
+  font-size: 18px;
+}
+
+.eyebrow,
+.section-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.section-title {
+  margin: 0 0 10px;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.kpis div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8faf8;
+}
+
+.kpis strong {
+  display: block;
+  font-size: 16px;
+}
+
+.kpis span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .card {
@@ -171,6 +233,11 @@ pre {
 
 @media (max-width: 760px) {
   .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .split,
+  .summary-band {
     grid-template-columns: 1fr;
   }
 
