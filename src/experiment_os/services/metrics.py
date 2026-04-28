@@ -80,14 +80,17 @@ class MetricsExtractor:
             "mcp_pre_work_protocol_called": _mcp_tool_called(
                 mcp_calls,
                 "start_pre_work_protocol",
-            ),
+            )
+            or _direct_mcp_pre_work_recorded(events),
             "mcp_dependency_graph_loaded": _mcp_tool_called(
                 mcp_calls,
                 "get_agent_dependency_graph",
             )
-            or _mcp_tool_called(mcp_calls, "resolve_dependencies"),
+            or _mcp_tool_called(mcp_calls, "resolve_dependencies")
+            or _direct_mcp_dependency_recorded(events),
             "mcp_dependencies_resolved_before_edit": _mcp_dependency_before_edit(events),
-            "mcp_final_answer_recorded": _mcp_recorded_event(mcp_calls, "final_answer"),
+            "mcp_final_answer_recorded": _mcp_recorded_event(mcp_calls, "final_answer")
+            or _direct_final_answer_recorded(events),
             "mcp_summary_requested": _mcp_tool_called(mcp_calls, "summarize_run"),
             "no_edit_decision_recorded": any(
                 event.event_type == "no_edit_decision" for event in events
@@ -245,10 +248,40 @@ def _mcp_recorded_event(events: list[RunEvent], event_type: str) -> bool:
     )
 
 
+def _direct_mcp_pre_work_recorded(events: list[RunEvent]) -> bool:
+    return any(
+        event.event_type == "brief_loaded"
+        and event.payload.get("brief_id")
+        and (
+            event.payload.get("gate") == "adapter"
+            or event.payload.get("protocol") == "experiment_os.pre_work.v1"
+        )
+        for event in events
+    )
+
+
+def _direct_mcp_dependency_recorded(events: list[RunEvent]) -> bool:
+    return any(
+        event.event_type == "dependency_resolved"
+        and (
+            event.payload.get("gate") == "adapter"
+            or event.payload.get("protocol") == "experiment_os.pre_work.v1"
+            or event.payload.get("dependency_pages")
+        )
+        for event in events
+    )
+
+
+def _direct_final_answer_recorded(events: list[RunEvent]) -> bool:
+    return any(event.event_type == "final_answer" for event in events)
+
+
 def _mcp_dependency_before_edit(events: list[RunEvent]) -> bool:
     for event in events:
         if event.event_type == "file_edited":
             return False
+        if event.event_type == "dependency_resolved" and _direct_mcp_dependency_recorded([event]):
+            return True
         if event.event_type != "mcp_tool_called":
             continue
         if event.payload.get("server") != "experiment_os":

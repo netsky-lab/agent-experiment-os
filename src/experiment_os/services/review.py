@@ -41,6 +41,15 @@ class ReviewService:
         reviewer: str | None = None,
         evidence_ids: list[str] | None = None,
     ) -> dict:
+        page = self._wiki.get_page(page_id)
+        if page is None:
+            raise ValueError(f"Unknown page_id: {page_id}")
+        _validate_status_change(
+            page_type=page.type,
+            status=status,
+            rationale=rationale,
+            evidence_ids=evidence_ids or [],
+        )
         page = self._wiki.set_status(page_id, status)
         metadata = dict(page.page_metadata)
         metadata["review"] = {
@@ -177,3 +186,18 @@ def _promotion_metadata(claim) -> dict:
         "review_required": True,
         "promotion_method": "human_requested.v1",
     }
+
+
+def _validate_status_change(
+    *,
+    page_type: str,
+    status: str,
+    rationale: str | None,
+    evidence_ids: list[str],
+) -> None:
+    if status != "accepted" or page_type not in {"policy", "intervention"}:
+        return
+    if not rationale or not rationale.strip():
+        raise ValueError("Accepting a policy or intervention requires review rationale.")
+    if not evidence_ids:
+        raise ValueError("Accepting a policy or intervention requires evidence_ids.")

@@ -85,3 +85,22 @@ def test_hard_nested_python_api_drift_fixture_hides_response_adapter_behind_rout
     assert 'DEFAULT_ADAPTER = "legacy"' in routing
     assert "ClientRouter" in client
     assert 'DEFAULT_ADAPTER = "responses"' in test_file
+
+
+def test_misleading_issue_python_api_drift_fixture_is_not_saturated():
+    workdir = Path("fixtures/python-api-drift-misleading-issue-repo")
+
+    task = (workdir / "TASK.md").read_text(encoding="utf-8")
+    issue = (workdir / "ISSUE_EVIDENCE.md").read_text(encoding="utf-8")
+    client = (workdir / "agent_client/client.py").read_text(encoding="utf-8")
+    vendor = (workdir / "agent_client/vendor_sdk.py").read_text(encoding="utf-8")
+    test_file = (workdir / "tests/test_client.py").read_text(encoding="utf-8")
+
+    assert "Misleading Issue Trap" in task
+    assert "example-llm-sdk==1.2.0" in issue
+    assert "chat_completions_create" in client
+    assert "responses_create" in vendor
+    assert "example-llm-sdk==1.2.0" not in (workdir / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    assert "local response: hello [brief]" in test_file

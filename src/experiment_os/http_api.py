@@ -240,6 +240,14 @@ def create_app() -> FastAPI:
         with session_scope() as session:
             return DashboardReadService(session).ui_contract()
 
+    @app.get("/ui/bootstrap")
+    def ui_bootstrap(experiment_id: str | None = None) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).ui_bootstrap(experiment_id=experiment_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.post("/review-actions/{page_id}/status")
     def set_status(page_id: str, update: StatusUpdate) -> dict[str, Any]:
         with session_scope() as session:

@@ -95,10 +95,17 @@ def knowledge_list(
 def knowledge_set_status(
     page_id: str,
     status: str,
+    rationale: str | None = typer.Option(None, help="Review rationale for accepted/rejected pages."),
+    evidence_id: list[str] | None = typer.Option(None, help="Evidence page/run/matrix id."),
 ) -> None:
     """Set a wiki page status, e.g. draft/accepted/rejected/superseded."""
     with session_scope() as session:
-        page = ReviewService(session).set_status(page_id, status)
+        page = ReviewService(session).set_status(
+            page_id,
+            status,
+            rationale=rationale,
+            evidence_ids=evidence_id or [],
+        )
     typer.echo(json.dumps(page, indent=2))
 
 
@@ -145,10 +152,24 @@ def issues_ingest(
     repo: str = typer.Option(..., help="GitHub repo in owner/name form."),
     query: str = typer.Option(..., help="GitHub issue search query."),
     limit: int = typer.Option(5, help="Maximum number of issues to ingest."),
+    input_json: Path | None = typer.Option(
+        None,
+        help="Optional local JSON file containing GitHub issue objects for reproducible ingestion.",
+    ),
 ) -> None:
     """Ingest GitHub issues as source snapshots and source wiki pages."""
+    issues = None
+    if input_json is not None:
+        issues = json.loads(input_json.read_text(encoding="utf-8"))
+        if isinstance(issues, dict):
+            issues = issues.get("items", [])
     with session_scope() as session:
-        result = GitHubIssueIngestor(session).ingest(repo=repo, query=query, limit=limit)
+        result = GitHubIssueIngestor(session).ingest(
+            repo=repo,
+            query=query,
+            limit=limit,
+            issues=issues,
+        )
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -494,6 +515,47 @@ def experiments_run_codex_api_drift_nested_matrix(
     """Run the nested Python API-drift matrix with deeper adapter-local surface."""
     with session_scope() as session:
         result = ExperimentMatrixRunner(session).run_nested_api_drift_matrix(
+            repeat_count=repeat_count,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            fixture_path=fixture_path,
+            include_mcp=include_mcp,
+            include_gated=include_gated,
+            include_opencode=include_opencode,
+            write_result_artifact=write_result_artifact,
+            progress=lambda event: typer.echo(json.dumps(event), err=True),
+        )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@experiments_app.command("run-codex-api-drift-misleading-matrix")
+def experiments_run_codex_api_drift_misleading_matrix(
+    repeat_count: int = typer.Option(1, min=1, help="Number of repeats per condition."),
+    models: list[str] | None = typer.Option(
+        None,
+        "--model",
+        help="Optional Codex model override. Repeat to run a model matrix.",
+    ),
+    sandbox: str = typer.Option("workspace-write", help="Codex sandbox mode."),
+    approval_policy: str = typer.Option("never", help="Codex approval policy."),
+    timeout_seconds: int = typer.Option(900, help="Command timeout per run."),
+    include_mcp: bool = typer.Option(False, help="Include the MCP-aware condition."),
+    include_gated: bool = typer.Option(True, help="Include the adapter-gated Codex condition."),
+    include_opencode: bool = typer.Option(False, help="Include adapter-gated OpenCode condition."),
+    write_result_artifact: bool = typer.Option(
+        True,
+        help="Write a markdown result artifact under the experiment results directory.",
+    ),
+    fixture_path: Path = typer.Option(
+        Path("fixtures/python-api-drift-misleading-issue-repo"),
+        help="Misleading issue API-drift fixture repo copied into disposable workdirs.",
+    ),
+) -> None:
+    """Run a non-saturated API-drift matrix with misleading issue evidence."""
+    with session_scope() as session:
+        result = ExperimentMatrixRunner(session).run_misleading_api_drift_matrix(
             repeat_count=repeat_count,
             models=models,
             sandbox=sandbox,

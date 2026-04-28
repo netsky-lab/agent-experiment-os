@@ -313,6 +313,19 @@ class DashboardReadService:
             ],
         }
 
+    def ui_bootstrap(self, *, experiment_id: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "contract": self.ui_contract(),
+            "experiments": self.list_experiments()["experiments"],
+            "review_queue": self.review_queue(limit=20)["items"],
+            "policy_candidate_categories": self.policy_candidate_categories(limit=20)[
+                "categories"
+            ],
+        }
+        if experiment_id is not None:
+            payload["story"] = self.experiment_story(experiment_id)
+        return payload
+
     def evidence_graph(self, *, brief_id: str) -> dict[str, Any]:
         brief = self._briefs.get(brief_id)
         if brief is None:
@@ -424,6 +437,11 @@ class DashboardReadService:
                     "id": "AgentContract",
                     "endpoint": "GET /briefs/{brief_id}/agent-work-context",
                     "purpose": "Show must-load knowledge, dependsOn edges, decision rules, and evidence boundaries.",
+                },
+                {
+                    "id": "DashboardBootstrap",
+                    "endpoint": "GET /ui/bootstrap",
+                    "purpose": "Return the contract, experiment list, review queue, and optional experiment story for the product shell.",
                 },
             ],
         }

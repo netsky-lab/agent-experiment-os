@@ -77,6 +77,10 @@ def test_http_api_exposes_dashboard_read_models(session):
     latest_churn = client.get("/experiments/experiment.001-drizzle-brief/churn/latest")
     categories = client.get("/policy-candidates/categories")
     ui_contract = client.get("/ui/contract")
+    ui_bootstrap = client.get(
+        "/ui/bootstrap",
+        params={"experiment_id": "experiment.001-drizzle-brief"},
+    )
 
     assert experiments.status_code == 200
     assert experiments.json()["experiments"]
@@ -105,6 +109,9 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert ui_contract.status_code == 200
     assert any(surface["id"] == "MatrixCompare" for surface in ui_contract.json()["surfaces"])
     assert any(surface["id"] == "ExperimentStory" for surface in ui_contract.json()["surfaces"])
+    assert ui_bootstrap.status_code == 200
+    assert ui_bootstrap.json()["contract"]["version"] == "ui_contract.v1"
+    assert ui_bootstrap.json()["story"]["experiment"]["id"] == "experiment.001-drizzle-brief"
 
 
 def test_http_api_exposes_agent_work_context_and_search(session):
@@ -139,7 +146,7 @@ def test_http_api_exposes_agent_work_context_and_search(session):
         json={
             "library": "example-llm-sdk",
             "topic": "upgrade advice api drift",
-            "limit": 5,
+            "limit": 20,
         },
     )
 

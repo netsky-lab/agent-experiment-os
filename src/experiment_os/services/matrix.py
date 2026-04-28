@@ -143,6 +143,42 @@ class ExperimentMatrixRunner:
             result_dir=result_dir,
         )
 
+    def run_misleading_api_drift_matrix(
+        self,
+        *,
+        repeat_count: int = 1,
+        model: str | None = None,
+        models: list[str | None] | None = None,
+        sandbox: str = "workspace-write",
+        approval_policy: str = "never",
+        timeout_seconds: int = 900,
+        fixture_path: Path = Path("fixtures/python-api-drift-misleading-issue-repo"),
+        include_mcp: bool = False,
+        include_gated: bool = True,
+        include_opencode: bool = False,
+        progress: Callable[[dict], None] | None = None,
+        write_result_artifact: bool = False,
+        result_dir: Path = Path("experiments/002-python-api-drift/results"),
+    ) -> dict:
+        return self._run_codex_matrix(
+            matrix_kind="api_drift_misleading_issue",
+            fixture_path=fixture_path,
+            repeat_count=repeat_count,
+            model=model,
+            models=models,
+            sandbox=sandbox,
+            approval_policy=approval_policy,
+            timeout_seconds=timeout_seconds,
+            conditions=_api_drift_conditions(
+                include_mcp=include_mcp,
+                include_gated=include_gated,
+                include_opencode=include_opencode,
+            ),
+            progress=progress,
+            write_result_artifact=write_result_artifact,
+            result_dir=result_dir,
+        )
+
     def _run_codex_matrix(
         self,
         *,
@@ -311,7 +347,7 @@ class ExperimentMatrixRunner:
                 run_metadata=run_metadata,
                 pre_work_gate=condition.pre_work_gate,
             )
-        if matrix_kind == "api_drift":
+        if matrix_kind.startswith("api_drift"):
             return self._runner.run_codex_api_drift(
                 condition_id=condition.condition_id,
                 prompt=condition.prompt,
@@ -347,7 +383,7 @@ class ExperimentMatrixRunner:
         fixture_path: Path,
         run_metadata: dict,
     ) -> dict:
-        if matrix_kind == "api_drift":
+        if matrix_kind.startswith("api_drift"):
             return self._runner.run_codex_mcp_aware_api_drift(
                 condition_id=condition.condition_id,
                 model=model,

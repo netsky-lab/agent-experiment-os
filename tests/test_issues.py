@@ -1,4 +1,5 @@
-from experiment_os.services.issues import _claims_from_issue
+from experiment_os.repositories.wiki import WikiRepository
+from experiment_os.services.issues import GitHubIssueIngestor, _claims_from_issue
 
 
 def test_issue_claim_extraction_includes_versions():
@@ -34,3 +35,39 @@ Fixed in the latest beta, but migration compatibility is risky.
     assert "Workaround" in reproduction_claim.metadata["workaround"]
     assert "Fixed" in reproduction_claim.metadata["verified_fix"]
     assert reproduction_claim.metadata["risk"]
+
+
+def test_issue_ingestor_can_run_end_to_end_from_local_issue_payload(session):
+    result = GitHubIssueIngestor(session).ingest(
+        repo="openai/openai-python",
+        query="responses migration",
+        issues=[
+            {
+                "number": 2677,
+                "title": "Responses migration tool call incompatibility",
+                "body": """
+### What version of `openai` are you using?
+2.21.0
+
+Migration from chat completions to responses fails when tool calls are replayed.
+Workaround: inspect local response parsing before changing app code.
+""",
+                "html_url": "https://github.com/openai/openai-python/issues/2677",
+                "url": "https://api.github.com/repos/openai/openai-python/issues/2677",
+                "state": "open",
+                "labels": [{"name": "bug"}],
+            }
+        ],
+    )
+
+    wiki = WikiRepository(session)
+    card = wiki.get_page(result["knowledge_card"])
+    version_claim = wiki.get_page("claim.github-issue.openai.openai-python.2677.versions")
+
+    assert result["issues"] == 1
+    assert result["claims"] >= 2
+    assert result["allowed_use"] == "evidence_only_until_verified_locally"
+    assert card is not None
+    assert card.page_metadata["allowed_use"] == "evidence_only"
+    assert version_claim is not None
+    assert version_claim.page_metadata["allowed_use"] == "evidence_only"

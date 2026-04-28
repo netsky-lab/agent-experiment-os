@@ -23,6 +23,12 @@ class AgentPreWorkResult:
     context_artifact_path: str | None = None
 
 
+@dataclass(frozen=True)
+class CompletionValidation:
+    passed: bool
+    violations: list[str]
+
+
 class AgentPreWorkGate:
     """Adapter-side protocol gate that loads Experiment OS context before agent execution."""
 
@@ -107,7 +113,7 @@ class AgentPreWorkGate:
             context_artifact_path=str(context_path),
         )
 
-    def complete(self, *, run_id: str, stdout: str, stderr: str) -> None:
+    def complete(self, *, run_id: str, stdout: str, stderr: str, strict: bool = True) -> None:
         final_answer = _extract_final_answer(stdout) or _tail_text(stdout, stderr)
         self._recorder.record_event(
             RunEventInput(
@@ -142,6 +148,32 @@ class AgentPreWorkGate:
                 },
             )
         )
+        validation = self.validate_completion(run_id)
+        if strict and not validation.passed:
+            raise ValueError(
+                "Experiment OS completion contract failed: "
+                + "; ".join(validation.violations)
+            )
+
+    def validate_completion(self, run_id: str) -> CompletionValidation:
+        events = self._runs.list_events(run_id)
+        event_types = [event.event_type for event in events]
+        violations: list[str] = []
+
+        if "brief_loaded" not in event_types:
+            violations.append("brief_loaded_missing")
+        if "dependency_resolved" not in event_types:
+            violations.append("dependency_resolved_missing")
+        if not _dependency_resolved_before_first_edit(events):
+            violations.append("dependencies_not_loaded_before_edit")
+        if "test_run" not in event_types:
+            violations.append("test_run_missing")
+        if "final_answer" not in event_types:
+            violations.append("final_answer_missing")
+        if not _mcp_recorded_final_answer(events):
+            violations.append("mcp_final_answer_record_missing")
+
+        return CompletionValidation(passed=not violations, violations=violations)
 
     def _record_pre_work_events(
         self,
@@ -224,3 +256,23 @@ def _extract_final_answer(stdout: str) -> str | None:
 def _tail_text(stdout: str, stderr: str) -> str:
     text = stdout.strip() or stderr.strip()
     return text[-4000:] if text else "Agent execution produced no final text."
+
+
+def _dependency_resolved_before_first_edit(events: list) -> bool:
+    saw_dependency = False
+    for event in events:
+        if event.event_type == "dependency_resolved":
+            saw_dependency = True
+        if event.event_type == "file_edited":
+            return saw_dependency
+    return saw_dependency
+
+
+def _mcp_recorded_final_answer(events: list) -> bool:
+    return any(
+        event.event_type == "mcp_tool_called"
+        and event.payload.get("server") == "experiment_os"
+        and event.payload.get("tool") == "record_run_event"
+        and event.payload.get("recorded_event_type") == "final_answer"
+        for event in events
+    )

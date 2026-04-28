@@ -301,3 +301,48 @@ def test_metrics_detect_mcp_pre_work_protocol(session):
     assert summary["metrics"]["mcp_dependencies_resolved_before_edit"] is True
     assert summary["metrics"]["mcp_final_answer_recorded"] is True
     assert summary["metrics"]["mcp_summary_requested"] is True
+
+
+def test_metrics_treat_direct_mcp_recorded_events_as_protocol_compliance(session):
+    recorder = RunRecorder(session)
+    run = recorder.start_run(
+        RunStartInput(
+            task="direct MCP metrics test",
+            metadata={"protocol": "experiment_os.pre_work.v1"},
+        )
+    )
+
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="brief_loaded",
+            payload={
+                "brief_id": "brief.direct",
+                "protocol": "experiment_os.pre_work.v1",
+            },
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="dependency_resolved",
+            payload={
+                "dependency_pages": ["knowledge.python-api-drift-local-shim"],
+                "protocol": "experiment_os.pre_work.v1",
+            },
+        )
+    )
+    recorder.record_event(
+        RunEventInput(
+            run_id=run["run_id"],
+            event_type="final_answer",
+            payload={"summary": "done"},
+        )
+    )
+
+    summary = recorder.summarize_run(run["run_id"])
+
+    assert summary["metrics"]["mcp_pre_work_protocol_called"] is True
+    assert summary["metrics"]["mcp_dependency_graph_loaded"] is True
+    assert summary["metrics"]["mcp_dependencies_resolved_before_edit"] is True
+    assert summary["metrics"]["mcp_final_answer_recorded"] is True

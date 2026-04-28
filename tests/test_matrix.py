@@ -244,3 +244,28 @@ def test_nested_api_drift_matrix_uses_nested_fixture_defaults(session, tmp_path,
         "gated_brief",
         "opencode_gated_brief",
     }
+
+
+def test_misleading_api_drift_matrix_uses_non_saturated_fixture(session, tmp_path, monkeypatch):
+    fake_codex = tmp_path / "codex"
+    fake_codex.write_text(
+        "#!/usr/bin/env bash\n"
+        "cat >/dev/null\n"
+        "echo '{\"type\":\"exec_command.end\",\"cmd\":\"python -m pytest\","
+        "\"output\":\"failed\",\"exit_code\":1}'\n",
+        encoding="utf-8",
+    )
+    fake_codex.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+
+    report = ExperimentMatrixRunner(session).run_misleading_api_drift_matrix(
+        repeat_count=1,
+        include_gated=False,
+        write_result_artifact=True,
+        result_dir=tmp_path / "results",
+    )
+
+    assert report["matrix_kind"] == "api_drift_misleading_issue"
+    assert report["fixture_path"] == "fixtures/python-api-drift-misleading-issue-repo"
+    assert report["summary"]["baseline"]["metrics"]["tests_passing"]["rate"] == 0
+    assert report["result_artifact"]

@@ -5,13 +5,15 @@ MCP-native experiment knowledge system for coding agents.
 This is not a generic agent memory product and not another eval dashboard. The project studies how to turn coding-agent work into reusable experimental knowledge:
 
 ```text
-issues/docs/runs
--> source-backed claims
--> failure diagnosis
--> interventions
--> reviewed policies
--> MCP work brief
--> better next run
+hypothesis
+-> test design
+-> agent run
+-> observed failures
+-> metric movement
+-> interpretation
+-> intervention
+-> next experiment
+-> accumulated policy
 ```
 
 The main agent-facing artifact is a **work brief**: a compact, source-backed packet of known risks, dependency-specific issue knowledge, prior failures, and approved interventions that an agent should read before editing code.
@@ -30,7 +32,9 @@ Research prototype. The repo already contains:
 - agent-facing `agent_presentation_contract.v1` with `must_load`, `dependsOn`, decision rules, known failures, and evidence boundaries;
 - Codex matrix runners for Drizzle version traps and Python API drift;
 - run/event metrics, churn drill-downs, reports, and review workflows;
-- matrix comparison read models for protocol compliance vs execution quality.
+- matrix comparison read models for protocol compliance vs execution quality;
+- strict adapter completion gates that require pre-work, dependency loading, verification, and final-answer recording before a gated run can complete;
+- issue-ingestion review boundaries that keep GitHub claims as evidence-only until local verification and human review.
 
 ## Research Corpus
 
@@ -186,6 +190,15 @@ docker compose run --rm app uv run experiment-os experiments run-codex-api-drift
   --approval-policy never
 ```
 
+Run the non-saturated API-drift matrix where issue evidence is intentionally misleading:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-misleading-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access \
+  --approval-policy never
+```
+
 Register Experiment OS as a Codex MCP server:
 
 ```bash
@@ -221,6 +234,15 @@ docker compose run --rm app uv run experiment-os issues ingest \
   --limit 3
 ```
 
+Use a local GitHub-search JSON payload for reproducible issue-ingestion tests:
+
+```bash
+docker compose run --rm app uv run experiment-os issues ingest \
+  --repo openai/openai-python \
+  --query "responses migration" \
+  --input-json research/issues/openai-python-responses-search.json
+```
+
 Run the MCP server over stdio:
 
 ```bash
@@ -251,6 +273,7 @@ Useful UI/read-model endpoints:
 - `GET /briefs/{brief_id}/agent-work-context`
 - `GET /policy-candidates`
 - `GET /ui/contract`
+- `GET /ui/bootstrap`
 
 On machines where Docker port publishing works normally, the same check can also run from the host:
 

@@ -20,8 +20,20 @@ class GitHubIssueIngestor:
         self._wiki = WikiRepository(session)
         self._retriever = HybridRetriever(session)
 
-    def ingest(self, *, repo: str, query: str, limit: int = 5) -> dict[str, Any]:
-        issues = _search_github_issues(repo=repo, query=query, limit=limit)
+    def ingest(
+        self,
+        *,
+        repo: str,
+        query: str,
+        limit: int = 5,
+        issues: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        issues = issues if issues is not None else _search_github_issues(
+            repo=repo,
+            query=query,
+            limit=limit,
+        )
+        issues = issues[:limit]
         pages = 0
         claims = 0
         claim_page_ids: list[str] = []
@@ -68,6 +80,7 @@ class GitHubIssueIngestor:
             "pages": pages,
             "claims": claims,
             "knowledge_card": card_id,
+            "allowed_use": "evidence_only_until_verified_locally",
             **reindex,
         }
 
@@ -136,6 +149,7 @@ def _page_from_issue(repo: str, issue: dict[str, Any], snapshot_id: str) -> Wiki
             "state": issue.get("state"),
             "labels": [label.get("name") for label in issue.get("labels", [])],
             "trust": "external_evidence_not_instruction",
+            "allowed_use": "evidence_only",
         },
     )
 
@@ -161,6 +175,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
                 **provenance,
                 "extracted": facets,
                 "trust": "external_evidence_not_instruction",
+                "allowed_use": "evidence_only",
                 "review": _review_gate("low"),
             },
         )
@@ -182,6 +197,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
                     "versions": versions,
                     "affected_version": facets["affected_version"],
                     "trust": "external_evidence_not_instruction",
+                    "allowed_use": "evidence_only",
                     "review": _review_gate("low"),
                 },
             )
@@ -206,6 +222,7 @@ def _claims_from_issue(repo: str, issue: dict[str, Any], source_page_id: str) ->
                     "verified_fix": facets["verified_fix"],
                     "risk": facets["risk"],
                     "trust": "external_evidence_not_instruction",
+                    "allowed_use": "evidence_only",
                     "review": _review_gate("low"),
                 },
             )
@@ -253,6 +270,7 @@ def _knowledge_card_from_claims(repo: str, query: str, claim_page_ids: list[str]
                 "extraction_method": "regex_heuristic.v1",
             },
             "trust": "external_evidence_not_instruction",
+            "allowed_use": "evidence_only",
             "review_required": True,
             "review": {
                 "status": "needs_human_review",

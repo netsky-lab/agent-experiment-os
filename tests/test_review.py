@@ -1,3 +1,5 @@
+import pytest
+
 from experiment_os.domain.schemas import WikiPageInput
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.services.review import ReviewService
@@ -101,3 +103,25 @@ def test_review_status_records_rationale_and_clears_review_required(session):
     )
     assert page["metadata"]["review"]["reviewer"] == "maintainer"
     assert page["metadata"]["review"]["evidence_ids"] == ["matrix.test", "run.test"]
+
+
+def test_review_status_rejects_policy_acceptance_without_evidence(session):
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.no-evidence",
+            type="policy",
+            title="No evidence policy",
+            status="draft",
+            confidence="medium",
+            summary="A policy candidate.",
+            metadata={"review_required": True},
+        )
+    )
+
+    with pytest.raises(ValueError, match="evidence_ids"):
+        ReviewService(session).set_status(
+            "policy.candidate.no-evidence",
+            "accepted",
+            rationale="Looks plausible.",
+            reviewer="maintainer",
+        )

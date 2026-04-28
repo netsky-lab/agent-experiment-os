@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "number": 2677,
+      "title": "Responses migration tool call incompatibility",
+      "body": "### What version of `openai` are you using?\n2.21.0\n\nMigration from chat completions to responses fails when tool calls are replayed.\nWorkaround: inspect local response parsing before changing app code.",
+      "html_url": "https://github.com/openai/openai-python/issues/2677",
+      "url": "https://api.github.com/repos/openai/openai-python/issues/2677",
+      "state": "open",
+      "labels": [
+        {
+          "name": "bug"
+        }
+      ]
+    }
+  ]
+}

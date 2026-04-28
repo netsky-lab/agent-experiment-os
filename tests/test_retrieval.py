@@ -36,7 +36,7 @@ def test_hybrid_search_can_filter_by_library_and_page_type(session):
 def test_hybrid_search_can_include_draft_issue_claims(session):
     results = HybridRetriever(session).search(
         "example llm sdk upgrade advice",
-        limit=5,
+        limit=20,
         libraries=["example-llm-sdk"],
         page_types=["claim"],
         status=None,

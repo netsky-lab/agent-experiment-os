@@ -199,7 +199,12 @@ def _file_edit_event(run_id: str, line: str) -> RunEventInput | None:
 
 def _test_run_event(run_id: str, line: str) -> RunEventInput | None:
     lower = line.lower()
-    if not any(token in lower for token in ["npm test", "pytest", "db:generate", "test_run"]):
+    if not (
+        "npm test" in lower
+        or "db:generate" in lower
+        or "test_run" in lower
+        or re.search(r"(^|[\s;&|])(?:python\s+-m\s+)?pytest(?:\s|$)", lower)
+    ):
         return None
     return RunEventInput(
         run_id=run_id,
