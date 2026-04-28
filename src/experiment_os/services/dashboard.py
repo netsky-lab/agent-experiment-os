@@ -9,6 +9,7 @@ from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.services.protocol import AgentWorkProtocol
 from experiment_os.services.protocol_contract import ProtocolComplianceCalculator
 from experiment_os.services.matrix_comparison import MatrixComparisonService
+from experiment_os.services.churn import ChurnDrillDownService
 from experiment_os.services.metrics import MetricsExtractor
 from experiment_os.services.review import ReviewService
 from experiment_os.services.serialization import (
@@ -30,6 +31,7 @@ class DashboardReadService:
         self._wiki = WikiRepository(session)
         self._protocol = AgentWorkProtocol(session)
         self._compliance = ProtocolComplianceCalculator()
+        self._churn = ChurnDrillDownService()
 
     def list_experiments(self) -> dict[str, Any]:
         experiments = []
@@ -174,6 +176,52 @@ class DashboardReadService:
             "artifacts": [artifact_to_dict(artifact) for artifact in artifacts],
         }
 
+    def run_churn(self, run_id: str) -> dict[str, Any]:
+        detail = self.run_detail(run_id)
+        events = self._runs.list_events(run_id)
+        return {
+            "run": detail["run"],
+            "metrics": detail["metrics"],
+            "churn": self._churn.from_events(events, detail["metrics"]),
+        }
+
+    def experiment_churn(
+        self,
+        experiment_id: str,
+        *,
+        matrix_id: str | None = None,
+    ) -> dict[str, Any]:
+        matrices = self.experiment_matrix(experiment_id)["matrices"]
+        if matrix_id is not None:
+            matrices = [matrix for matrix in matrices if matrix["matrix_id"] == matrix_id]
+            if not matrices:
+                raise ValueError(f"Unknown matrix_id: {matrix_id}")
+        return {
+            "experiment_id": experiment_id,
+            "matrices": [
+                {
+                    "matrix_id": matrix["matrix_id"],
+                    "matrix_kind": matrix["matrix_kind"],
+                    "conditions": {
+                        condition_id: {
+                            "quality_signals": condition["quality_signals"],
+                            "runs": [
+                                {
+                                    "run_id": run["run_id"],
+                                    "test_failure_count": run["metrics"].get("test_failure_count", 0),
+                                    "tests_passing": run["metrics"].get("tests_passing"),
+                                    "needs_review": run["metrics"].get("test_failure_count", 0) > 0,
+                                }
+                                for run in condition["runs"]
+                            ],
+                        }
+                        for condition_id, condition in matrix["conditions"].items()
+                    },
+                }
+                for matrix in matrices
+            ],
+        }
+
     def review_queue(self, *, limit: int = 50) -> dict[str, Any]:
         return {"items": self._review.review_queue(limit=limit)}
 
@@ -231,6 +279,43 @@ class DashboardReadService:
                 "metadata": page.page_metadata,
             },
             "actions": actions,
+        }
+
+    def ui_contract(self) -> dict[str, Any]:
+        return {
+            "version": "ui_contract.v1",
+            "surfaces": [
+                {
+                    "id": "ExperimentList",
+                    "endpoint": "GET /experiments",
+                    "purpose": "List experiment hypotheses, status, condition count, and result count.",
+                },
+                {
+                    "id": "MatrixCompare",
+                    "endpoint": "GET /experiments/{experiment_id}/matrix/compare",
+                    "purpose": "Compare protocol compliance, quality signals, and metric deltas between matrices.",
+                },
+                {
+                    "id": "RunTimeline",
+                    "endpoint": "GET /runs/{run_id}",
+                    "purpose": "Inspect structured events, metrics, and artifacts for one run.",
+                },
+                {
+                    "id": "ChurnDrillDown",
+                    "endpoint": "GET /runs/{run_id}/churn",
+                    "purpose": "Review failed verification output and recovery verification for red-green runs.",
+                },
+                {
+                    "id": "PolicyReview",
+                    "endpoint": "GET /policy-candidates",
+                    "purpose": "Review draft policies before agent decision-rule use.",
+                },
+                {
+                    "id": "AgentContract",
+                    "endpoint": "GET /briefs/{brief_id}/agent-work-context",
+                    "purpose": "Show must-load knowledge, dependsOn edges, decision rules, and evidence boundaries.",
+                },
+            ],
         }
 
 

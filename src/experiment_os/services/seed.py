@@ -173,6 +173,75 @@ def _seed_pages() -> list[WikiPageInput]:
             },
         ),
         WikiPageInput(
+            id="policy.clean-pass-requires-failure-cause",
+            type="policy",
+            title="Clean pass requires explaining recovered verification failures",
+            status="accepted",
+            confidence="medium",
+            summary=(
+                "A final passing verification is not clean evidence when an earlier verification "
+                "failed; the agent must record the failure cause before the run informs policy."
+            ),
+            body=(
+                "Use this policy for red-green churn. If tests fail and later pass, record the failed "
+                "command, failure cause, final recovery command, and whether the fix is reusable or "
+                "task-specific. Do not promote correctness claims from a recovered run without that trail."
+            ),
+            metadata={
+                "appliesTo": {"run_signal": "red_green_churn"},
+                "requiredChecks": [
+                    "Inspect failed verification output before accepting the final patch.",
+                    "Record why the final fix resolved the failed verification.",
+                    "Separate clean pass rate from final pass rate in experiment decisions.",
+                ],
+                "forbiddenActions": [
+                    "Do not treat final pass as clean pass when test_failure_count is greater than zero.",
+                ],
+            },
+        ),
+        WikiPageInput(
+            id="intervention.record-red-green-cause",
+            type="intervention",
+            title="Record red-green failure cause",
+            status="accepted",
+            confidence="medium",
+            summary=(
+                "When a run recovers from failed verification, preserve the failed output and recovery rationale."
+            ),
+            body=(
+                "This intervention turns a red-green run into inspectable evidence. It should capture "
+                "the failed command, output excerpt, changed file, final passing command, and whether "
+                "the recovery generalizes."
+            ),
+            metadata={
+                "mitigates": ["failure.red-green-churn"],
+                "recommendedChecks": [
+                    "Open churn drill-down before reviewing a recovered run.",
+                    "Reject policy promotion if failure cause is missing.",
+                ],
+            },
+        ),
+        WikiPageInput(
+            id="failure.red-green-churn",
+            type="failure",
+            title="Red-green verification churn",
+            status="accepted",
+            confidence="medium",
+            summary=(
+                "The agent reaches a final passing state only after one or more failed verification attempts."
+            ),
+            body=(
+                "Red-green churn is not automatically bad, but it is not the same as a clean pass. "
+                "It can indicate productive repair, hidden trial-and-error, or an under-specified oracle."
+            ),
+            metadata={
+                "recommendedChecks": [
+                    "Compare clean pass rate separately from final pass rate.",
+                    "Inspect failed verification output before accepting policy evidence.",
+                ],
+            },
+        ),
+        WikiPageInput(
             id="knowledge.python-api-drift-local-shim",
             type="knowledge_card",
             title="Python API drift tasks need local shim inspection",
@@ -284,5 +353,17 @@ def _seed_edges() -> list[PageEdge]:
         PageEdge(
             source_page_id="intervention.local-api-surface-first",
             target_page_id="failure.stale-api-drift",
+        ),
+        PageEdge(
+            source_page_id="policy.clean-pass-requires-failure-cause",
+            target_page_id="failure.red-green-churn",
+        ),
+        PageEdge(
+            source_page_id="policy.clean-pass-requires-failure-cause",
+            target_page_id="intervention.record-red-green-cause",
+        ),
+        PageEdge(
+            source_page_id="intervention.record-red-green-cause",
+            target_page_id="failure.red-green-churn",
         ),
     ]

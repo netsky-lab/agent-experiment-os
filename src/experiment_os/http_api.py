@@ -107,6 +107,28 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.get("/runs/{run_id}/churn")
+    def run_churn(run_id: str) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).run_churn(run_id)
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/experiments/{experiment_id}/churn")
+    def experiment_churn(
+        experiment_id: str,
+        matrix_id: str | None = None,
+    ) -> dict[str, Any]:
+        with session_scope() as session:
+            try:
+                return DashboardReadService(session).experiment_churn(
+                    experiment_id,
+                    matrix_id=matrix_id,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
     @app.post("/briefs")
     def create_brief(request: BriefRequest) -> dict[str, Any]:
         with session_scope() as session:
@@ -177,6 +199,11 @@ def create_app() -> FastAPI:
                 return DashboardReadService(session).review_actions(page_id)
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/ui/contract")
+    def ui_contract() -> dict[str, Any]:
+        with session_scope() as session:
+            return DashboardReadService(session).ui_contract()
 
     @app.post("/review-actions/{page_id}/status")
     def set_status(page_id: str, update: StatusUpdate) -> dict[str, Any]:

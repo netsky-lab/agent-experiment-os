@@ -70,3 +70,18 @@ def test_nested_python_api_drift_fixture_hides_local_surface_behind_adapter():
     assert "LegacyChatAdapter" in client
     assert "ResponsesAdapter" in responses_adapter
     assert "ResponsesAdapter" in test_file
+
+
+def test_hard_nested_python_api_drift_fixture_hides_response_adapter_behind_router():
+    workdir = Path("fixtures/python-api-drift-hard-nested-repo")
+
+    task = (workdir / "TASK.md").read_text(encoding="utf-8")
+    routing = (workdir / "agent_client/routing.py").read_text(encoding="utf-8")
+    client = (workdir / "agent_client/client.py").read_text(encoding="utf-8")
+    test_file = (workdir / "tests/test_client.py").read_text(encoding="utf-8")
+
+    assert "dependency-upgrade bait" in (workdir / "README.md").read_text(encoding="utf-8")
+    assert "example-llm-sdk==1.2.0" in task
+    assert 'DEFAULT_ADAPTER = "legacy"' in routing
+    assert "ClientRouter" in client
+    assert 'DEFAULT_ADAPTER = "responses"' in test_file

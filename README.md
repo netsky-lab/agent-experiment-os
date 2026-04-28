@@ -16,6 +16,9 @@ issues/docs/runs
 
 The main agent-facing artifact is a **work brief**: a compact, source-backed packet of known risks, dependency-specific issue knowledge, prior failures, and approved interventions that an agent should read before editing code.
 
+The main research artifact is a **matrix report**: repeated agent runs that separate final task success,
+protocol compliance, clean-pass rate, red-green churn, forbidden edits, and policy candidates.
+
 ## Current Status
 
 Research prototype. The repo already contains:
@@ -24,8 +27,10 @@ Research prototype. The repo already contains:
 - Postgres + pgvector-backed knowledge retrieval;
 - source-backed wiki pages with `dependsOn` edges;
 - agent-facing `agent_work_context.v1`;
+- agent-facing `agent_presentation_contract.v1` with `must_load`, `dependsOn`, decision rules, known failures, and evidence boundaries;
 - Codex matrix runners for Drizzle version traps and Python API drift;
-- run/event metrics, reports, and review workflows.
+- run/event metrics, churn drill-downs, reports, and review workflows;
+- matrix comparison read models for protocol compliance vs execution quality.
 
 ## Research Corpus
 
@@ -172,18 +177,33 @@ docker compose run --rm app uv run experiment-os experiments run-codex-api-drift
   --approval-policy never
 ```
 
+Run the nested API-drift matrix:
+
+```bash
+docker compose run --rm app uv run experiment-os experiments run-codex-api-drift-nested-matrix \
+  --repeat-count 3 \
+  --sandbox danger-full-access \
+  --approval-policy never
+```
+
+Register Experiment OS as a Codex MCP server:
+
+```bash
+codex mcp add experiment-os -- docker compose -f "$(pwd)/docker-compose.yml" run --rm app uv run experiment-os mcp serve
+```
+
+Smoke-check the MCP presentation contract:
+
+```bash
+docker compose run --rm app uv run experiment-os demo mcp-smoke
+```
+
 Run a model matrix by repeating `--model`:
 
 ```bash
 docker compose run --rm app uv run experiment-os experiments run-codex-version-trap-hard-matrix \
   --model gpt-5.4-mini \
   --model gpt-5.4
-```
-
-Register Experiment OS as a Codex MCP server:
-
-```bash
-codex mcp add experiment-os -- docker compose run --rm app uv run experiment-os mcp serve
 ```
 
 Search local knowledge with full-text + pgvector retrieval:
@@ -219,6 +239,19 @@ Run the dashboard/backend HTTP API:
 docker compose run --rm --service-ports app uv run experiment-os api serve --host 0.0.0.0 --port 8080
 ```
 
+Useful UI/read-model endpoints:
+
+- `GET /experiments`
+- `GET /experiments/{experiment_id}/matrix`
+- `GET /experiments/{experiment_id}/matrix/compare?left_matrix_id=...&right_matrix_id=...`
+- `GET /experiments/{experiment_id}/protocol-compliance`
+- `GET /experiments/{experiment_id}/churn?matrix_id=...`
+- `GET /runs/{run_id}`
+- `GET /runs/{run_id}/churn`
+- `GET /briefs/{brief_id}/agent-work-context`
+- `GET /policy-candidates`
+- `GET /ui/contract`
+
 On machines where Docker port publishing works normally, the same check can also run from the host:
 
 ```bash
@@ -244,3 +277,20 @@ The MCP tools and CLI commands share the same service layer.
 - `fixtures/drizzle-version-trap-repo` - easy version trap, now mostly solved by current Codex.
 - `fixtures/drizzle-version-trap-hard-repo` - stricter Drizzle oracle with one correct schema edit.
 - `fixtures/python-api-drift-repo` - second-domain scaffold for Python SDK/API drift.
+- `fixtures/python-api-drift-nested-repo` - API-drift fixture where the correct adapter is behind a nested module.
+- `fixtures/python-api-drift-hard-nested-repo` - harder router fixture with dependency-upgrade bait.
+
+## Current R&D Signal
+
+The first flat-vs-nested API-drift comparison saturated final pass rate, so the useful signal moved
+to execution quality:
+
+- gated Codex reached full protocol compliance but produced red-green churn;
+- gated OpenCode reached full protocol compliance with clean passes;
+- final pass rate, protocol compliance, and clean pass rate must be tracked separately.
+
+See:
+
+- `experiments/002-python-api-drift/results/2026-04-28-matrix-api-drift-ab282831e5a2.md`
+- `experiments/002-python-api-drift/results/2026-04-28-matrix-api-drift-nested-3bafb86522e5.md`
+- `experiments/002-python-api-drift/results/2026-04-28-flat-vs-nested-matrix-comparison.md`

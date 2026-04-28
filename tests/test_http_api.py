@@ -66,6 +66,11 @@ def test_http_api_exposes_dashboard_read_models(session):
         },
     )
     policies = client.get("/policy-candidates")
+    churn = client.get(
+        "/experiments/experiment.001-drizzle-brief/churn",
+        params={"matrix_id": "matrix.http-right"},
+    )
+    ui_contract = client.get("/ui/contract")
 
     assert experiments.status_code == 200
     assert experiments.json()["experiments"]
@@ -81,6 +86,10 @@ def test_http_api_exposes_dashboard_read_models(session):
     assert comparison.json()["comparison"]["right_matrix_id"] == "matrix.http-right"
     assert policies.status_code == 200
     assert policies.json()["items"]
+    assert churn.status_code == 200
+    assert churn.json()["matrices"][0]["conditions"]["static_brief"]["runs"][0]["needs_review"] is True
+    assert ui_contract.status_code == 200
+    assert any(surface["id"] == "MatrixCompare" for surface in ui_contract.json()["surfaces"])
 
 
 def test_http_api_exposes_agent_work_context_and_search(session):

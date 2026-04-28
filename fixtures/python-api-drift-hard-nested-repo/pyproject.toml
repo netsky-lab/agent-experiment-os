@@ -1,0 +1,11 @@
+[project]
+name = "python-api-drift-hard-nested-fixture"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "example-llm-sdk==0.9.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

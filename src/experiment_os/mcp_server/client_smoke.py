@@ -34,6 +34,11 @@ async def run_mcp_smoke() -> dict[str, Any]:
             dependencies = protocol["dependencies"]
             run = protocol["run"]
             agent_graph = protocol["agent_dependency_graph"]
+            presentation_contract = await _call_json(
+                session,
+                "get_agent_presentation_contract",
+                {"brief_id": brief["brief_id"], "dependency_depth": 2},
+            )
             dependencies = await _call_json(
                 session,
                 "resolve_dependencies",
@@ -51,6 +56,17 @@ async def run_mcp_smoke() -> dict[str, Any]:
                     },
                 },
             )
+            final_answer = await _call_json(
+                session,
+                "record_run_event",
+                {
+                    "run_id": run["run_id"],
+                    "event_type": "final_answer",
+                    "payload": {
+                        "summary": "MCP smoke completed the presentation contract loop.",
+                    },
+                },
+            )
             search = await _call_json(
                 session,
                 "search_issue_knowledge",
@@ -65,9 +81,12 @@ async def run_mcp_smoke() -> dict[str, Any]:
         "brief_id": brief["brief_id"],
         "required_pages": brief["required_pages"],
         "agent_graph_load_order": agent_graph["load_order"],
+        "presentation_must_load": presentation_contract["must_load"],
+        "presentation_depends_on": presentation_contract["dependsOn"],
         "dependency_pages": [page["id"] for page in dependencies["pages"]],
         "run_id": run["run_id"],
         "event_id": event["event_id"],
+        "final_answer_event_id": final_answer["event_id"],
         "issue_results": [result["id"] for result in search["results"]],
     }
 

@@ -128,3 +128,31 @@ def test_dashboard_compares_matrices(session, tmp_path):
 
     condition = comparison["comparison"]["conditions"]["static_brief"]
     assert condition["quality_signal_deltas"]["red_green_churn_mean"]["right"] == 1
+
+
+def test_dashboard_exposes_churn_drill_down(session, tmp_path):
+    result = ExperimentRunner(session).run_shell_condition(
+        condition_id="condition.001-drizzle-brief-assisted",
+        command="echo 'npm test failed'; echo 'npm test passed'",
+        workdir=tmp_path,
+        timeout_seconds=30,
+        run_metadata={
+            "matrix_id": "matrix.churn",
+            "matrix_kind": "version_trap",
+            "matrix_condition": "static_brief",
+        },
+    )
+    run_id = result["run"]["run_id"]
+
+    dashboard = DashboardReadService(session)
+    run_churn = dashboard.run_churn(run_id)
+    experiment_churn = dashboard.experiment_churn(
+        "experiment.001-drizzle-brief",
+        matrix_id="matrix.churn",
+    )
+
+    assert run_churn["churn"]["has_churn"] is True
+    assert run_churn["churn"]["recovered"] is True
+    assert run_churn["churn"]["failed_verifications"]
+    assert experiment_churn["matrices"][0]["conditions"]["static_brief"]["runs"][0]["needs_review"] is True
+    assert any(surface["id"] == "ChurnDrillDown" for surface in dashboard.ui_contract()["surfaces"])
