@@ -3,9 +3,9 @@
 import {
   Activity,
   BookOpen,
-  Boxes,
   Brain,
   CheckCircle2,
+  DatabaseZap,
   FileText,
   GitBranch,
   RefreshCw,
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
   TestTube2,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -24,15 +25,18 @@ import {
   fetchGraphData,
   fallbackData,
   fallbackGraph,
+  ingestIssueEvidence,
+  updateReviewStatus,
 } from "../lib/api";
 
-type ViewId = "experiments" | "runs" | "review" | "brief" | "graph" | "health";
+type ViewId = "experiments" | "runs" | "review" | "brief" | "issues" | "graph" | "health";
 
 const views: Array<{ id: ViewId; label: string; group: string; icon: React.ComponentType<{ size?: number }> }> = [
   { id: "experiments", label: "Experiments", group: "Research", icon: TestTube2 },
   { id: "runs", label: "Runs", group: "Research", icon: Activity },
   { id: "brief", label: "Agent Contract", group: "Brief", icon: BookOpen },
   { id: "review", label: "Review Queue", group: "Knowledge", icon: ShieldCheck },
+  { id: "issues", label: "Issue Evidence", group: "Knowledge", icon: DatabaseZap },
   { id: "graph", label: "Knowledge Graph", group: "Knowledge", icon: GitBranch },
   { id: "health", label: "Knowledge Health", group: "Knowledge", icon: Brain },
 ];
@@ -134,6 +138,7 @@ export function Dashboard() {
           {active === "runs" ? <RunsView data={data} /> : null}
           {active === "review" ? <ReviewView items={data.review_queue} /> : null}
           {active === "brief" ? <BriefView data={data} /> : null}
+          {active === "issues" ? <IssuesView onChanged={refresh} /> : null}
           {active === "graph" ? <GraphView graph={graph} /> : null}
           {active === "health" ? <HealthView data={data} /> : null}
         </section>
@@ -218,6 +223,27 @@ function RunsView({ data }: { data: DashboardData }) {
 }
 
 function ReviewView({ items }: { items: ReviewItem[] }) {
+  const [selectedId, setSelectedId] = useState(items[0]?.id ?? "");
+  const [rationale, setRationale] = useState("Reviewed in dashboard: source evidence remains bounded and provenance is visible.");
+  const [message, setMessage] = useState("");
+  const selected = items.find((item) => item.id === selectedId) ?? items[0];
+
+  async function applyStatus(status: "accepted" | "rejected" | "deprecated") {
+    if (!selected) return;
+    setMessage("Saving review action...");
+    try {
+      await updateReviewStatus(
+        selected.id,
+        status,
+        rationale,
+        selected.id.includes("candidate") ? ["claim.issue.example-llm-sdk.upgrade-advice"] : [selected.id],
+      );
+      setMessage(`Saved ${status} for ${selected.id}. Refresh to update the queue.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Review action failed.");
+    }
+  }
+
   return (
     <div className="split">
       <div className="pane">
@@ -229,18 +255,49 @@ function ReviewView({ items }: { items: ReviewItem[] }) {
             <span>Status</span>
           </div>
           {items.map((item) => (
-            <div className="row three" key={item.id}>
+            <button
+              className={selected?.id === item.id ? "row three row-button active" : "row three row-button"}
+              key={item.id}
+              onClick={() => setSelectedId(item.id)}
+            >
               <span>
                 <b>{item.title}</b>
                 <small>{item.summary}</small>
               </span>
               <span>{item.type}</span>
               <Pill tone="warn">{item.status}</Pill>
-            </div>
+            </button>
           ))}
         </div>
       </div>
       <div className="pane">
+        <PaneHeader title="Review Action" subtitle={selected?.id ?? "select a page"} />
+        {selected ? (
+          <div className="form-stack">
+            <div className="contract-card">
+              <span className="mono">{selected.type}</span>
+              <h3>{selected.title}</h3>
+              <p>{selected.summary}</p>
+            </div>
+            <label className="field">
+              <span>Rationale</span>
+              <textarea value={rationale} onChange={(event) => setRationale(event.target.value)} />
+            </label>
+            <div className="button-row">
+              <button className="command ok" onClick={() => applyStatus("accepted")}>
+                <CheckCircle2 size={15} /> Accept
+              </button>
+              <button className="command warn" onClick={() => applyStatus("rejected")}>
+                <XCircle size={15} /> Reject
+              </button>
+            </div>
+            {message ? <div className="inline-message">{message}</div> : null}
+          </div>
+        ) : (
+          <EmptyState text="No review items in the current read model." />
+        )}
+      </div>
+      <div className="pane full-width">
         <PaneHeader title="Review Contract" subtitle="promotion is auditable" />
         <div className="contract-list">
           <ContractItem icon={ShieldCheck} title="Evidence required" text="Policies and interventions require rationale and evidence ids before acceptance." />
@@ -253,30 +310,101 @@ function ReviewView({ items }: { items: ReviewItem[] }) {
 }
 
 function BriefView({ data }: { data: DashboardData }) {
-  const contract = data.contract;
+  const agent = data.agent_contract;
   return (
     <div className="split">
       <div className="pane">
-        <PaneHeader title="Agent Contract Preview" subtitle={contract.version} />
+        <PaneHeader title="Must Load" subtitle={agent.brief_id ?? "fallback"} />
         <div className="contract-list">
-          {contract.surfaces.slice(0, 8).map((surface) => (
-            <article className="contract-card" key={surface.id}>
-              <span className="mono">{surface.endpoint}</span>
-              <h3>{surface.id}</h3>
-              <p>{surface.purpose}</p>
+          <article className="contract-card strong">
+            <span className="mono">{agent.repo}</span>
+            <h3>{agent.task}</h3>
+            <p>{agent.libraries?.join(", ")}</p>
+          </article>
+          {agent.must_load.map((pageId) => (
+            <article className="contract-card" key={pageId}>
+              <span className="mono">must_load</span>
+              <h3>{pageId}</h3>
+              <p>Agent should load this page before risky edits or final answer.</p>
             </article>
           ))}
         </div>
       </div>
       <div className="pane">
-        <PaneHeader title="Protocol Sequence" subtitle="what agents should do before final answer" />
+        <PaneHeader title="dependsOn + Rules" subtitle="agent-facing presentation" />
         <div className="timeline">
-          {["start_pre_work_protocol", "resolve_dependencies", "record_decision", "test_run", "complete_run"].map((step) => (
+          {agent.dependsOn.map((edge) => (
+            <div className="timeline-row" key={`${edge.source}-${edge.target}`}>
+              <GitBranch size={14} />
+              <span>{edge.source} {"->"} {edge.target}</span>
+            </div>
+          ))}
+          {agent.decision_rules.map((rule) => (
+            <div className="timeline-row" key={rule}>
+              <ShieldCheck size={14} />
+              <span>{rule}</span>
+            </div>
+          ))}
+          {agent.recommended_checks.map((step) => (
             <div className="timeline-row" key={step}>
               <Sparkles size={14} />
               <span>{step}</span>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IssuesView({ onChanged }: { onChanged: () => void }) {
+  const [repo, setRepo] = useState("openai/openai-python");
+  const [query, setQuery] = useState("responses api migration tool calls");
+  const [limit, setLimit] = useState(3);
+  const [message, setMessage] = useState("");
+
+  async function ingest() {
+    setMessage("Ingesting GitHub issues...");
+    try {
+      const result = await ingestIssueEvidence(repo, query, limit);
+      setMessage(
+        `Ingested ${result.issues} issue(s), ${result.claims} claim(s), card ${result.knowledge_card ?? "none"}.`,
+      );
+      onChanged();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Issue ingestion failed.");
+    }
+  }
+
+  return (
+    <div className="split">
+      <div className="pane">
+        <PaneHeader title="GitHub Issue Ingestion" subtitle="source-backed, evidence-only" />
+        <div className="form-stack">
+          <label className="field">
+            <span>Repository</span>
+            <input value={repo} onChange={(event) => setRepo(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Query</span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Limit</span>
+            <input type="number" min={1} max={10} value={limit} onChange={(event) => setLimit(Number(event.target.value))} />
+          </label>
+          <button className="command ok" onClick={ingest}>
+            <DatabaseZap size={15} /> Ingest issues
+          </button>
+          {message ? <div className="inline-message">{message}</div> : null}
+        </div>
+      </div>
+      <div className="pane">
+        <PaneHeader title="Evidence Boundary" subtitle="what agents may do with issues" />
+        <div className="contract-list">
+          <ContractItem icon={FileText} title="Evidence, not instruction" text="Issue text becomes source snapshots and low-confidence claims. Agents must verify local package versions and local API shape." />
+          <ContractItem icon={GitBranch} title="Provenance first" text="Claims keep derivedFrom edges to source issues so review can inspect the original evidence." />
+          <ContractItem icon={ShieldCheck} title="Review before policy" text="Promotion to policies or interventions stays draft until rationale and evidence ids are recorded." />
         </div>
       </div>
     </div>
@@ -398,6 +526,7 @@ function countFor(view: ViewId, counts: Record<string, number>) {
   if (view === "experiments") return counts.experiments;
   if (view === "runs") return counts.runs;
   if (view === "review") return counts.review;
+  if (view === "issues") return "";
   if (view === "graph") return counts.pages;
   if (view === "health") return counts.stale + counts.duplicates;
   return "";

@@ -6,6 +6,7 @@ services:
     working_dir: /workspace
     environment:
       DATABASE_URL: postgresql://experiment_os:experiment_os@postgres:5432/experiment_os
+      EXPERIMENT_OS_API_KEY: ${EXPERIMENT_OS_API_KEY:-}
     ports:
       - "8080:8080"
     volumes:
@@ -25,6 +26,7 @@ services:
     working_dir: /workspace/frontend
     environment:
       NEXT_PUBLIC_EXPERIMENT_OS_API_URL: ${NEXT_PUBLIC_EXPERIMENT_OS_API_URL:-http://127.0.0.1:8080}
+      NEXT_PUBLIC_EXPERIMENT_OS_API_KEY: ${NEXT_PUBLIC_EXPERIMENT_OS_API_KEY:-}
     ports:
       - "3000:3000"
     volumes:

@@ -49,6 +49,18 @@ export type DashboardData = {
     fingerprint: string;
     pages: Array<{ id: string }>;
   }>;
+  agent_contract: {
+    brief_id: string | null;
+    task: string;
+    repo?: string | null;
+    libraries?: string[];
+    must_load: string[];
+    recommended: string[];
+    dependsOn: Array<{ source: string; target: string; type: string }>;
+    decision_rules: string[];
+    recommended_checks: string[];
+    evidence_pages: string[];
+  };
   story?: {
     experiment: { id: string; title: string; hypothesis: string; status: string };
     latest_matrix: { matrix_id: string; run_count: number } | null;
@@ -64,6 +76,7 @@ export type GraphData = {
 };
 
 const apiBase = process.env.NEXT_PUBLIC_EXPERIMENT_OS_API_URL;
+const apiKey = process.env.NEXT_PUBLIC_EXPERIMENT_OS_API_KEY;
 
 export async function fetchDashboardData(): Promise<DashboardData> {
   if (!apiBase) throw new Error("NEXT_PUBLIC_EXPERIMENT_OS_API_URL is not configured");
@@ -77,6 +90,46 @@ export async function fetchGraphData(): Promise<GraphData> {
   const response = await fetch(`${apiBase}/wiki/graph`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Wiki graph failed: ${response.status}`);
   return response.json() as Promise<GraphData>;
+}
+
+export async function updateReviewStatus(
+  pageId: string,
+  status: "accepted" | "rejected" | "deprecated",
+  rationale: string,
+  evidenceIds: string[],
+) {
+  if (!apiBase) throw new Error("NEXT_PUBLIC_EXPERIMENT_OS_API_URL is not configured");
+  const response = await fetch(`${apiBase}/review-actions/${encodeURIComponent(pageId)}/status`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({
+      status,
+      rationale,
+      reviewer: "dashboard",
+      evidence_ids: evidenceIds,
+    }),
+  });
+  if (!response.ok) throw new Error(`Review update failed: ${response.status}`);
+  return response.json();
+}
+
+export async function ingestIssueEvidence(repo: string, query: string, limit: number) {
+  if (!apiBase) throw new Error("NEXT_PUBLIC_EXPERIMENT_OS_API_URL is not configured");
+  const response = await fetch(`${apiBase}/issue-knowledge/ingest`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ repo, query, limit }),
+  });
+  if (!response.ok) throw new Error(`Issue ingestion failed: ${response.status}`);
+  return response.json() as Promise<{
+    repo: string;
+    query: string;
+    issues: number;
+    pages: number;
+    claims: number;
+    knowledge_card: string | null;
+    allowed_use: string;
+  }>;
 }
 
 export const fallbackData: DashboardData = {
@@ -135,6 +188,34 @@ export const fallbackData: DashboardData = {
     },
   ],
   duplicate_knowledge: [],
+  agent_contract: {
+    brief_id: "brief.demo.agent-contract",
+    task: "Repair a Python SDK wrapper using issue evidence without replaying stale API advice.",
+    repo: "/demo/python-api-drift",
+    libraries: ["example-llm-sdk"],
+    must_load: [
+      "policy.clean-pass-requires-failure-cause",
+      "knowledge.python-api-drift-local-shim",
+      "policy.candidate.issue-evidence-version-gate",
+    ],
+    recommended: ["failure.stale-api-drift", "intervention.local-api-surface-first"],
+    dependsOn: [
+      {
+        source: "knowledge.python-api-drift-local-shim",
+        target: "failure.stale-api-drift",
+        type: "dependsOn",
+      },
+    ],
+    decision_rules: [
+      "Treat issue evidence as hypothesis until local version and API surface are verified.",
+      "Do not promote final pass when recovered test failures have no recorded cause.",
+    ],
+    recommended_checks: [
+      "Open the local API shim before editing callers.",
+      "Record failed verification cause before final answer.",
+    ],
+    evidence_pages: ["claim.issue.example-llm-sdk.upgrade-advice"],
+  },
   story: {
     experiment: {
       id: "experiment.002-python-api-drift",
@@ -155,6 +236,12 @@ export const fallbackData: DashboardData = {
     policy_candidate_categories: [{ id: "red_green_churn", count: 1 }],
   },
 };
+
+function writeHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+  return headers;
+}
 
 export const fallbackGraph: GraphData = {
   nodes: [

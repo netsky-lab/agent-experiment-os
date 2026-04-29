@@ -62,6 +62,8 @@ Research prototype. The repo already contains:
 - [Codex quickstart](./docs/codex-quickstart.md)
 - [Codex MCP contract](./docs/codex-mcp.md)
 - [Backend API contract](./docs/backend-api-contract.md)
+- [Local stack](./docs/local-stack.md)
+- [Product dashboard](./docs/product-dashboard.md)
 - [Experiment methodology](./docs/experiment-methodology.md)
 - [Public matrix report](./docs/public-matrix-report.md)
 - [Issue evidence model](./docs/issue-evidence-model.md)
@@ -73,48 +75,59 @@ Research prototype. The repo already contains:
 
 ## Quickstart
 
-Start Postgres, migrate, seed, and run tests:
+Start the full local stack:
 
 ```bash
 make up
-make migrate
-make seed
+```
+
+This starts Postgres, runs migrations, seeds wiki/demo knowledge, starts the FastAPI backend, and starts the Next.js dashboard.
+
+Open:
+
+```text
+http://127.0.0.1:3000
+```
+
+On hosts where Docker publishes ports but HTTP requests hang, keep the stack running and start the fallback proxy:
+
+```bash
+NEXT_PUBLIC_EXPERIMENT_OS_API_URL=http://127.0.0.1:8091 docker compose up -d --force-recreate frontend
+make dev-proxy
+```
+
+Then open:
+
+```text
+http://127.0.0.1:3019
+```
+
+Run tests:
+
+```bash
 make test
 ```
 
-Run the API:
+Run only the API manually:
 
 ```bash
 make api
 ```
 
-Open the static product UI after the API starts:
+Open the legacy static product UI after the API starts:
 
 ```text
 http://127.0.0.1:8080/app/
 ```
 
-Run the Next.js dashboard scaffold against the API:
-
-```bash
-make frontend
-```
-
-For live backend data, set the API URL before starting the frontend:
+Run the Next.js dashboard directly from the frontend package:
 
 ```bash
 cd frontend
 NEXT_PUBLIC_EXPERIMENT_OS_API_URL=http://127.0.0.1:8080 npm run dev
 ```
 
-If the variable is omitted, the dashboard uses a built-in research-preview dataset so the UI can
-still be reviewed without a running backend.
-
-Then open:
-
-```text
-http://127.0.0.1:3000
-```
+If the API URL is omitted, the dashboard uses a built-in research-preview dataset so the UI can still be reviewed without a running backend.
 
 Run the MCP server:
 
@@ -356,8 +369,11 @@ Useful UI/read-model endpoints:
 - `GET /knowledge/duplicates`
 - `GET /pages/{page_id}/provenance`
 - `POST /issue-knowledge/{page_id}/version-alignment`
+- `POST /issue-knowledge/ingest`
 - `GET /policy-candidates`
 - `GET /ui/contract`
+
+Write endpoints are open by default for local research. Set `EXPERIMENT_OS_API_KEY` to require `x-api-key` on mutations, and pass the same value to the dashboard as `NEXT_PUBLIC_EXPERIMENT_OS_API_KEY` for local protected demos.
 - `GET /ui/bootstrap`
 
 On machines where Docker port publishing works normally, the same check can also run from the host:

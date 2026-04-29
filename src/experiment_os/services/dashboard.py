@@ -349,19 +349,54 @@ class DashboardReadService:
         return WikiHealthService(self._session).duplicate_candidates()
 
     def ui_bootstrap(self, *, experiment_id: str | None = None) -> dict[str, Any]:
+        experiments = self.list_experiments()["experiments"]
+        selected_experiment_id = experiment_id or (
+            experiments[0]["id"] if experiments else None
+        )
         payload: dict[str, Any] = {
             "contract": self.ui_contract(),
-            "experiments": self.list_experiments()["experiments"],
+            "experiments": experiments,
             "review_queue": self.review_queue(limit=20)["items"],
             "policy_candidate_categories": self.policy_candidate_categories(limit=20)[
                 "categories"
             ],
             "stale_knowledge": self.stale_knowledge()["items"][:10],
             "duplicate_knowledge": self.duplicate_knowledge()["items"][:10],
+            "agent_contract": self.demo_agent_contract(),
         }
-        if experiment_id is not None:
-            payload["story"] = self.experiment_story(experiment_id)
+        if selected_experiment_id is not None:
+            payload["story"] = self.experiment_story(selected_experiment_id)
         return payload
+
+    def demo_agent_contract(self) -> dict[str, Any]:
+        brief = self._briefs.get("brief.demo.agent-contract")
+        if brief is None:
+            return {
+                "brief_id": None,
+                "task": "No seeded agent contract.",
+                "must_load": [],
+                "recommended": [],
+                "dependsOn": [],
+                "decision_rules": [],
+                "recommended_checks": [],
+                "evidence_pages": [],
+            }
+        presentation = brief.content.get("presentation_contract", {})
+        return {
+            "brief_id": brief.id,
+            "task": brief.task,
+            "repo": brief.repo,
+            "libraries": brief.libraries,
+            "agent": brief.agent,
+            "model": brief.model,
+            "toolchain": brief.toolchain,
+            "must_load": presentation.get("must_load", brief.required_pages),
+            "recommended": brief.recommended_pages,
+            "dependsOn": presentation.get("dependsOn", []),
+            "decision_rules": presentation.get("decision_rules", []),
+            "recommended_checks": brief.content.get("recommended_checks", []),
+            "evidence_pages": brief.content.get("evidence_pages", []),
+        }
 
     def evidence_graph(self, *, brief_id: str) -> dict[str, Any]:
         brief = self._briefs.get(brief_id)
@@ -494,6 +529,16 @@ class DashboardReadService:
                     "id": "DashboardBootstrap",
                     "endpoint": "GET /ui/bootstrap",
                     "purpose": "Return the contract, experiment list, review queue, and optional experiment story for the product shell.",
+                },
+                {
+                    "id": "IssueEvidenceIngest",
+                    "endpoint": "POST /issue-knowledge/ingest",
+                    "purpose": "Ingest GitHub issue evidence as source-backed claims that remain evidence-only until reviewed.",
+                },
+                {
+                    "id": "ReviewActionWrite",
+                    "endpoint": "POST /review-actions/{page_id}/status",
+                    "purpose": "Accept, reject, or deprecate candidate knowledge with rationale and evidence ids.",
                 },
             ],
         }

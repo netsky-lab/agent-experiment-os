@@ -1,5 +1,7 @@
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from experiment_os.db.models import Brief, Experiment, ExperimentCondition, ExperimentRunResult, Run, RunEvent
 from experiment_os.domain.schemas import PageEdge, WikiPageInput
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.retrieval.hybrid import HybridRetriever
@@ -13,6 +15,8 @@ class SeedService:
     def seed(self) -> dict[str, int]:
         pages = _seed_pages()
         edges = _seed_edges()
+        demo = _seed_demo_experiments(self._session)
+        brief_count = _seed_demo_brief(self._session)
 
         for page in pages:
             self._wiki.upsert_page(page)
@@ -20,7 +24,7 @@ class SeedService:
             self._wiki.upsert_edge(edge)
         HybridRetriever(self._session).reindex_all()
 
-        return {"pages": len(pages), "edges": len(edges)}
+        return {"pages": len(pages), "edges": len(edges), "briefs": brief_count, **demo}
 
 
 def _seed_pages() -> list[WikiPageInput]:
@@ -309,6 +313,35 @@ def _seed_pages() -> list[WikiPageInput]:
                 "source_page_id": "source.issue.example-llm-sdk.api-drift",
             },
         ),
+        WikiPageInput(
+            id="policy.candidate.issue-evidence-version-gate",
+            type="policy",
+            title="Gate issue evidence on local version alignment",
+            status="draft",
+            confidence="medium",
+            summary=(
+                "Issue-derived claims must not become agent instructions until local package versions "
+                "and local API surface are aligned with the source evidence."
+            ),
+            body=(
+                "This draft policy exists for UI review. It should be accepted only with rationale "
+                "and evidence ids proving that version mismatch caused an observed agent failure."
+            ),
+            metadata={
+                "review_required": True,
+                "source_signal": "issue_evidence_version_mismatch",
+                "failure_type": "stale_api_drift",
+                "promotion_gate": {
+                    "matrix_saturated": False,
+                    "unexplained_churn": False,
+                },
+                "appliesTo": {"evidence_type": "github_issue"},
+                "recommendedChecks": [
+                    "Compare issue affected versions with local package lock files.",
+                    "Inspect local API surface before applying issue workarounds.",
+                ],
+            },
+        ),
     ]
 
 
@@ -366,4 +399,217 @@ def _seed_edges() -> list[PageEdge]:
             source_page_id="intervention.record-red-green-cause",
             target_page_id="failure.red-green-churn",
         ),
+        PageEdge(
+            source_page_id="policy.candidate.issue-evidence-version-gate",
+            target_page_id="failure.stale-api-drift",
+        ),
+        PageEdge(
+            source_page_id="policy.candidate.issue-evidence-version-gate",
+            target_page_id="claim.issue.example-llm-sdk.upgrade-advice",
+        ),
     ]
+
+
+def _seed_demo_experiments(session: Session) -> dict[str, int]:
+    experiments = [
+        {
+            "id": "experiment.001-drizzle-brief",
+            "title": "Drizzle Issue-Informed Work Brief",
+            "hypothesis": "Issue-informed MCP briefs reduce stale-library and wrong-workaround failures.",
+            "status": "running",
+            "metadata": {"task_family": "drizzle_migration_defaults", "demo": True},
+            "conditions": [
+                ("condition.001-drizzle-baseline", "baseline", False),
+                ("condition.001-drizzle-brief-assisted", "brief-assisted", True),
+            ],
+        },
+        {
+            "id": "experiment.002-python-api-drift",
+            "title": "Python SDK API Drift Work Brief",
+            "hypothesis": "MCP work contexts reduce stale API, dependency edit, and test edit failures.",
+            "status": "interpreted",
+            "metadata": {"task_family": "python_api_drift", "demo": True},
+            "conditions": [
+                ("condition.002-api-drift-baseline", "baseline", False),
+                ("condition.002-api-drift-brief-assisted", "brief-assisted", True),
+                ("condition.002-api-drift-mcp-gated", "mcp-gated", True),
+            ],
+        },
+        {
+            "id": "experiment.003-agent-protocol-compliance",
+            "title": "Agent protocol compliance is separate from task success",
+            "hypothesis": "A run can pass tests while still failing the evidence protocol required for policy promotion.",
+            "status": "draft",
+            "metadata": {"task_family": "protocol_compliance", "demo": True},
+            "conditions": [
+                ("condition.003-raw-agent", "raw-agent", False),
+                ("condition.003-mcp-contract", "mcp-contract", True),
+            ],
+        },
+    ]
+    for experiment in experiments:
+        _upsert(
+            session,
+            Experiment,
+            {
+                "id": experiment["id"],
+                "title": experiment["title"],
+                "hypothesis": experiment["hypothesis"],
+                "status": experiment["status"],
+                "experiment_metadata": experiment["metadata"],
+            },
+            ["id"],
+        )
+        for condition_id, name, brief_required in experiment["conditions"]:
+            _upsert(
+                session,
+                ExperimentCondition,
+                {
+                    "id": condition_id,
+                    "experiment_id": experiment["id"],
+                    "name": name,
+                    "description": f"Demo condition: {name}.",
+                    "config": {"brief_required": brief_required, "demo": True},
+                },
+                ["id"],
+            )
+
+    demo_runs = [
+        ("experiment.002-python-api-drift", "condition.002-api-drift-baseline", "demo.run.api-drift.baseline.1", False, 2, 1, 0, False),
+        ("experiment.002-python-api-drift", "condition.002-api-drift-brief-assisted", "demo.run.api-drift.brief.1", True, 1, 0, 0, True),
+        ("experiment.002-python-api-drift", "condition.002-api-drift-mcp-gated", "demo.run.api-drift.gated.1", True, 0, 0, 0, True),
+        ("experiment.001-drizzle-brief", "condition.001-drizzle-baseline", "demo.run.drizzle.baseline.1", False, 1, 0, 1, False),
+        ("experiment.001-drizzle-brief", "condition.001-drizzle-brief-assisted", "demo.run.drizzle.brief.1", True, 0, 0, 0, True),
+        ("experiment.003-agent-protocol-compliance", "condition.003-raw-agent", "demo.run.protocol.raw.1", True, 0, 0, 0, False),
+        ("experiment.003-agent-protocol-compliance", "condition.003-mcp-contract", "demo.run.protocol.contract.1", True, 0, 0, 0, True),
+    ]
+    for experiment_id, condition_id, run_id, tests_passing, failures, forbidden, wrong_file, protocol_ok in demo_runs:
+        _upsert(
+            session,
+            Run,
+            {
+                "id": run_id,
+                "task": f"Demo run for {experiment_id}",
+                "repo": "/demo",
+                "agent": "codex",
+                "model": "gpt-5.5",
+                "toolchain": "mcp",
+                "status": "completed",
+                "run_metadata": {"demo": True},
+            },
+            ["id"],
+        )
+        metrics = {
+            "tests_passing": tests_passing,
+            "test_failure_count": failures,
+            "forbidden_edit_count": forbidden,
+            "wrong_file_edits": wrong_file,
+            "mcp_pre_work_protocol_called": protocol_ok,
+            "mcp_dependencies_resolved_before_edit": protocol_ok,
+            "mcp_final_answer_recorded": protocol_ok,
+        }
+        _upsert(
+            session,
+            ExperimentRunResult,
+            {
+                "id": f"result.{run_id}",
+                "experiment_id": experiment_id,
+                "condition_id": condition_id,
+                "run_id": run_id,
+                "metrics": metrics,
+                "report": {
+                    "run": {
+                        "id": run_id,
+                        "metadata": {
+                            "matrix_id": f"matrix.demo.{experiment_id.removeprefix('experiment.')}.v1",
+                            "matrix_kind": "seeded_demo",
+                            "matrix_condition": condition_id,
+                        },
+                    },
+                    "interpretation": "Seeded demo evidence for the product dashboard.",
+                },
+            },
+            ["id"],
+        )
+        _upsert(
+            session,
+            RunEvent,
+            {
+                "run_id": run_id,
+                "step_index": 0,
+                "event_type": "brief_loaded" if protocol_ok else "task_started",
+                "payload": {"demo": True, "protocol_ok": protocol_ok},
+            },
+            ["run_id", "step_index"],
+        )
+    return {"experiments": len(experiments), "demo_runs": len(demo_runs)}
+
+
+def _seed_demo_brief(session: Session) -> int:
+    content = {
+        "presentation_contract": {
+            "must_load": [
+                "policy.clean-pass-requires-failure-cause",
+                "knowledge.python-api-drift-local-shim",
+                "policy.candidate.issue-evidence-version-gate",
+            ],
+            "dependsOn": [
+                {
+                    "source": "policy.clean-pass-requires-failure-cause",
+                    "target": "failure.red-green-churn",
+                    "type": "dependsOn",
+                },
+                {
+                    "source": "knowledge.python-api-drift-local-shim",
+                    "target": "failure.stale-api-drift",
+                    "type": "dependsOn",
+                },
+            ],
+            "decision_rules": [
+                "Treat issue evidence as hypothesis until local version and API surface are verified.",
+                "Do not promote a final pass when recovered test failures have no recorded cause.",
+            ],
+        },
+        "known_risks": [
+            {"page_id": "failure.stale-api-drift", "risk": "Stale API drift"},
+            {"page_id": "failure.red-green-churn", "risk": "Red-green verification churn"},
+        ],
+        "recommended_checks": [
+            "Open the local API shim before editing callers.",
+            "Record failed verification cause before final answer.",
+        ],
+        "evidence_pages": ["claim.issue.example-llm-sdk.upgrade-advice"],
+    }
+    _upsert(
+        session,
+        Brief,
+        {
+            "id": "brief.demo.agent-contract",
+            "task": "Repair a Python SDK wrapper using issue evidence without replaying stale API advice.",
+            "repo": "/demo/python-api-drift",
+            "libraries": ["example-llm-sdk"],
+            "agent": "codex",
+            "model": "gpt-5.5",
+            "toolchain": "mcp",
+            "token_budget": 2000,
+            "required_pages": content["presentation_contract"]["must_load"],
+            "recommended_pages": ["failure.stale-api-drift", "intervention.local-api-surface-first"],
+            "content": content,
+        },
+        ["id"],
+    )
+    return 1
+
+
+def _upsert(session: Session, model, values: dict, keys: list[str]) -> None:
+    column_values = {getattr(model, key): value for key, value in values.items()}
+    update_values = {
+        getattr(model, key): value for key, value in values.items() if key not in keys
+    }
+    index_elements = [getattr(model, key) for key in keys]
+    stmt = insert(model).values(column_values)
+    if update_values:
+        stmt = stmt.on_conflict_do_update(index_elements=index_elements, set_=update_values)
+    else:
+        stmt = stmt.on_conflict_do_nothing(index_elements=index_elements)
+    session.execute(stmt)

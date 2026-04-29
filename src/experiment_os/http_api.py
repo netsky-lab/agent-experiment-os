@@ -1,6 +1,7 @@
+import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Header, HTTPException, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -56,6 +57,12 @@ class IssueKnowledgeSearchRequest(BaseModel):
     topic: str
     version: str | None = None
     limit: int = 8
+
+
+class IssueIngestRequest(BaseModel):
+    repo: str
+    query: str
+    limit: int = 5
 
 
 def create_app() -> FastAPI:
@@ -165,7 +172,9 @@ def create_app() -> FastAPI:
     def set_experiment_status(
         experiment_id: str,
         update: ExperimentStatusUpdate,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
     ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
         with session_scope() as session:
             try:
                 return ExperimentLifecycleService(session).set_status(
@@ -234,7 +243,11 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.post("/briefs")
-    def create_brief(request: BriefRequest) -> dict[str, Any]:
+    def create_brief(
+        request: BriefRequest,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
         with session_scope() as session:
             return BriefCompiler(session).compile(request)
 
@@ -309,6 +322,19 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.post("/issue-knowledge/ingest")
+    def ingest_issue_knowledge(
+        request: IssueIngestRequest,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
+        with session_scope() as session:
+            return GitHubIssueIngestor(session).ingest(
+                repo=request.repo,
+                query=request.query,
+                limit=request.limit,
+            )
+
     @app.get("/review-queue")
     def review_queue(limit: int = 50) -> dict[str, Any]:
         with session_scope() as session:
@@ -377,7 +403,12 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.post("/review-actions/{page_id}/status")
-    def set_status(page_id: str, update: StatusUpdate) -> dict[str, Any]:
+    def set_status(
+        page_id: str,
+        update: StatusUpdate,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
         with session_scope() as session:
             try:
                 return ReviewService(session).set_status(
@@ -391,7 +422,12 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.post("/claims/{claim_id}/promote/knowledge")
-    def promote_knowledge(claim_id: str, request: PromotionRequest) -> dict[str, Any]:
+    def promote_knowledge(
+        claim_id: str,
+        request: PromotionRequest,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
         with session_scope() as session:
             try:
                 return ReviewService(session).promote_claim(claim_id, title=request.title)
@@ -399,7 +435,12 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.post("/claims/{claim_id}/promote/policy")
-    def promote_policy(claim_id: str, request: PromotionRequest) -> dict[str, Any]:
+    def promote_policy(
+        claim_id: str,
+        request: PromotionRequest,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
         with session_scope() as session:
             try:
                 return ReviewService(session).promote_claim_to_policy(
@@ -411,7 +452,12 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.post("/claims/{claim_id}/promote/intervention")
-    def promote_intervention(claim_id: str, request: PromotionRequest) -> dict[str, Any]:
+    def promote_intervention(
+        claim_id: str,
+        request: PromotionRequest,
+        x_api_key: str | None = Header(default=None, alias="x-api-key"),
+    ) -> dict[str, Any]:
+        _require_write_access(x_api_key)
         with session_scope() as session:
             try:
                 return ReviewService(session).promote_claim_to_intervention(
@@ -423,6 +469,12 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
     return app
+
+
+def _require_write_access(x_api_key: str | None) -> None:
+    expected = os.environ.get("EXPERIMENT_OS_API_KEY")
+    if expected and x_api_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing x-api-key.")
 
 
 app = create_app()

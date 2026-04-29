@@ -1,10 +1,16 @@
-.PHONY: up down migrate seed test compile check ci api mcp frontend frontend-build frontend-typecheck frontend-audit api-drift-matrix version-trap-hard-matrix
+.PHONY: up down dev-proxy migrate seed test compile check ci api mcp frontend frontend-build frontend-typecheck frontend-audit api-drift-matrix version-trap-hard-matrix
 
 up:
 	docker compose up -d postgres app frontend
 
 down:
 	docker compose down
+
+dev-proxy:
+	socat TCP-LISTEN:8091,fork,reuseaddr SYSTEM:'docker compose exec -T app socat STDIO TCP\:127.0.0.1\:8080' &
+	socat TCP-LISTEN:3019,fork,reuseaddr SYSTEM:'docker compose exec -T frontend socat STDIO TCP\:127.0.0.1\:3000' &
+	@echo "UI: http://127.0.0.1:3019"
+	@echo "API: http://127.0.0.1:8091"
 
 migrate:
 	docker compose run --rm app uv run experiment-os db migrate
