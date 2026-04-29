@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -59,6 +60,12 @@ class IssueKnowledgeSearchRequest(BaseModel):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Experiment OS API", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     static_dir = Path(__file__).resolve().parents[2] / "web"
     if static_dir.exists():
         app.mount("/app", StaticFiles(directory=static_dir, html=True), name="app")

@@ -1,7 +1,7 @@
 .PHONY: up down migrate seed test compile check ci api mcp frontend frontend-build frontend-typecheck frontend-audit api-drift-matrix version-trap-hard-matrix
 
 up:
-	docker compose up -d postgres
+	docker compose up -d postgres app frontend
 
 down:
 	docker compose down
