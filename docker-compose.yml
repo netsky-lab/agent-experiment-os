@@ -13,6 +13,19 @@ services:
       postgres:
         condition: service_healthy
 
+  frontend:
+    image: node:22-bookworm
+    container_name: experiment-os-frontend
+    working_dir: /workspace/frontend
+    environment:
+      NEXT_PUBLIC_EXPERIMENT_OS_API_URL: http://127.0.0.1:8080
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - frontend_node_modules:/workspace/frontend/node_modules
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: experiment-os-postgres
@@ -34,3 +47,4 @@ services:
 volumes:
   postgres_data:
   uv_cache:
+  frontend_node_modules:

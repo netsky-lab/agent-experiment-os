@@ -1,4 +1,4 @@
-.PHONY: up down migrate seed test compile check ci api mcp api-drift-matrix version-trap-hard-matrix
+.PHONY: up down migrate seed test compile check ci api mcp frontend frontend-build frontend-typecheck frontend-audit api-drift-matrix version-trap-hard-matrix
 
 up:
 	docker compose up -d postgres
@@ -18,13 +18,25 @@ test:
 compile:
 	docker compose run --rm app uv run python -m compileall src
 
-check: test compile
+check: test compile frontend-typecheck frontend-build frontend-audit
 	git diff --check
 
 ci: up check
 
 api:
 	docker compose run --rm --service-ports app uv run experiment-os api serve --host 0.0.0.0 --port 8080
+
+frontend:
+	cd frontend && npm run dev
+
+frontend-typecheck:
+	cd frontend && npm run typecheck
+
+frontend-build:
+	cd frontend && npm run build
+
+frontend-audit:
+	cd frontend && npm audit --omit=dev
 
 mcp:
 	docker compose run --rm app uv run experiment-os mcp serve

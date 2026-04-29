@@ -1,5 +1,10 @@
 # Agent Experiment OS
 
+[![CI](https://github.com/netsky-lab/agent-experiment-os/actions/workflows/ci.yml/badge.svg)](https://github.com/netsky-lab/agent-experiment-os/actions/workflows/ci.yml)
+[![GitHub Pages](https://img.shields.io/badge/pages-live-3d5a3a)](https://netsky-lab.github.io/agent-experiment-os/)
+[![MCP](https://img.shields.io/badge/MCP-native-c8410b)](./docs/codex-quickstart.md)
+[![Research Preview](https://img.shields.io/badge/status-research_preview-171513)](./docs/release-preview-v0.1.0.md)
+
 MCP-native experiment knowledge system for coding agents.
 
 This is not a generic agent memory product and not another eval dashboard. The project studies how to turn coding-agent work into reusable experimental knowledge:
@@ -21,6 +26,12 @@ The main agent-facing artifact is a **work brief**: a compact, source-backed pac
 The main research artifact is a **matrix report**: repeated agent runs that separate final task success,
 protocol compliance, clean-pass rate, red-green churn, forbidden edits, and policy candidates.
 
+Public homepage:
+
+```text
+https://netsky-lab.github.io/agent-experiment-os/
+```
+
 ## Current Status
 
 Research prototype. The repo already contains:
@@ -35,6 +46,7 @@ Research prototype. The repo already contains:
 - matrix comparison read models for protocol compliance vs execution quality;
 - strict adapter completion gates that require pre-work, dependency loading, verification, and final-answer recording before a gated run can complete;
 - issue-ingestion review boundaries that keep GitHub claims as evidence-only until local verification and human review.
+- Next.js frontend scaffold for the product dashboard.
 
 ## Research Corpus
 
@@ -43,16 +55,21 @@ Research prototype. The repo already contains:
 
 ## Design Docs
 
+- [Thesis](./docs/thesis.md)
 - [Architecture](./docs/architecture.md)
 - [Agent adapter layer](./docs/agent-adapters.md)
 - [Agent work context](./docs/agent-work-context.md)
+- [Codex quickstart](./docs/codex-quickstart.md)
 - [Codex MCP contract](./docs/codex-mcp.md)
 - [Backend API contract](./docs/backend-api-contract.md)
 - [Experiment methodology](./docs/experiment-methodology.md)
+- [Public matrix report](./docs/public-matrix-report.md)
+- [Issue evidence model](./docs/issue-evidence-model.md)
 - [Issue evidence security](./docs/issue-evidence-security.md)
 - [Knowledge wiki model](./docs/knowledge-wiki.md)
 - [MCP dependency flow](./docs/mcp-dependency-flow.md)
 - [Roadmap](./docs/roadmap.md)
+- [v0.1.0 research preview notes](./docs/release-preview-v0.1.0.md)
 
 ## Quickstart
 
@@ -75,6 +92,28 @@ Open the static product UI after the API starts:
 
 ```text
 http://127.0.0.1:8080/app/
+```
+
+Run the Next.js dashboard scaffold against the API:
+
+```bash
+make frontend
+```
+
+For live backend data, set the API URL before starting the frontend:
+
+```bash
+cd frontend
+NEXT_PUBLIC_EXPERIMENT_OS_API_URL=http://127.0.0.1:8080 npm run dev
+```
+
+If the variable is omitted, the dashboard uses a built-in research-preview dataset so the UI can
+still be reviewed without a running backend.
+
+Then open:
+
+```text
+http://127.0.0.1:3000
 ```
 
 Run the MCP server:
