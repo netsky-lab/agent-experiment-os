@@ -68,10 +68,13 @@ Research prototype. The repo already contains:
 - [Public matrix report](./docs/public-matrix-report.md)
 - [Issue evidence model](./docs/issue-evidence-model.md)
 - [Issue evidence security](./docs/issue-evidence-security.md)
+- [Security notes](./docs/security.md)
 - [Knowledge wiki model](./docs/knowledge-wiki.md)
 - [MCP dependency flow](./docs/mcp-dependency-flow.md)
+- [Research agenda](./docs/research-agenda.md)
 - [Roadmap](./docs/roadmap.md)
 - [v0.1.0 research preview notes](./docs/release-preview-v0.1.0.md)
+- [v0.1.1 research preview notes](./docs/release-preview-v0.1.1.md)
 
 ## Quickstart
 
@@ -106,6 +109,18 @@ Run tests:
 
 ```bash
 make test
+```
+
+Reset the seeded demo dataset:
+
+```bash
+make seed-reset
+```
+
+Build the production-style stack:
+
+```bash
+make up-prod
 ```
 
 Run only the API manually:

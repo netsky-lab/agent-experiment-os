@@ -8,6 +8,7 @@ from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.experiments import ExperimentRunner
 from experiment_os.services.issues import GitHubIssueIngestor
+from experiment_os.services import issues as issue_service
 
 
 def test_http_api_exposes_dashboard_read_models(session):
@@ -297,3 +298,72 @@ def test_http_api_review_status_accepts_rationale(session):
     assert body["status"] == "accepted"
     assert body["metadata"]["review"]["rationale"] == "Evidence reviewed."
     assert body["metadata"]["review"]["evidence_ids"] == ["run.http-status"]
+
+
+def test_http_api_write_endpoints_can_require_api_key(session, monkeypatch):
+    WikiRepository(session).upsert_page(
+        WikiPageInput(
+            id="policy.candidate.guarded",
+            type="policy",
+            title="Guarded policy",
+            status="draft",
+            confidence="medium",
+            summary="A guarded candidate.",
+            metadata={"review_required": True},
+        )
+    )
+    session.commit()
+    monkeypatch.setenv("EXPERIMENT_OS_API_KEY", "secret")
+    client = TestClient(create_app())
+    payload = {
+        "status": "accepted",
+        "rationale": "Evidence reviewed.",
+        "reviewer": "maintainer",
+        "evidence_ids": ["run.guarded"],
+    }
+
+    missing = client.post("/review-actions/policy.candidate.guarded/status", json=payload)
+    accepted = client.post(
+        "/review-actions/policy.candidate.guarded/status",
+        headers={"x-api-key": "secret"},
+        json=payload,
+    )
+
+    assert missing.status_code == 401
+    assert accepted.status_code == 200
+
+
+def test_http_api_ingests_issue_knowledge_with_local_search_stub(session, monkeypatch):
+    def fake_search(repo: str, query: str, limit: int):
+        return [
+            {
+                "number": 92872,
+                "title": "responses.parse warning",
+                "body": """
+### What version of `openai` are you using?
+2.21.0
+
+responses.parse emits a serialization warning.
+Workaround: inspect local parser shape before changing dependencies.
+""",
+                "html_url": "https://github.com/openai/openai-python/issues/92872",
+                "url": "https://api.github.com/repos/openai/openai-python/issues/92872",
+                "state": "open",
+                "labels": [{"name": "bug"}],
+            }
+        ][:limit]
+
+    monkeypatch.setattr(issue_service, "_search_github_issues", fake_search)
+    session.commit()
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/issue-knowledge/ingest",
+        json={"repo": "openai/openai-python", "query": "responses parse", "limit": 1},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["issues"] == 1
+    assert body["claims"] >= 2
+    assert body["allowed_use"] == "evidence_only_until_verified_locally"

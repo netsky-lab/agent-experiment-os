@@ -33,3 +33,17 @@ NEXT_PUBLIC_EXPERIMENT_OS_API_KEY=local-secret
 ```
 
 Read endpoints stay open. Mutations for briefs, experiment status, review actions, promotion, and issue ingestion require `x-api-key` only when `EXPERIMENT_OS_API_KEY` is set.
+
+Production-style compose:
+
+```bash
+make up-prod
+```
+
+This uses `Dockerfile.frontend` and `docker-compose.prod.yml` so the dashboard starts from a prebuilt Next.js artifact instead of running `npm install` on container startup.
+
+Reset the seeded demo data:
+
+```bash
+make seed-reset
+```

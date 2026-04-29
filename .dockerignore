@@ -5,6 +5,10 @@ __pycache__
 .ruff_cache
 .mypy_cache
 node_modules
+frontend/.next
+frontend/node_modules
+frontend/test-results
+frontend/playwright-report
 research/papers/*.pdf
 runs
 traces
@@ -12,4 +16,3 @@ artifacts
 exports
 storage
 data/local
-

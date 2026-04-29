@@ -21,11 +21,14 @@ import {
   ExperimentItem,
   GraphData,
   ReviewItem,
+  WikiNode,
+  checkVersionAlignment,
   fetchDashboardData,
   fetchGraphData,
   fallbackData,
   fallbackGraph,
   ingestIssueEvidence,
+  promoteClaim,
   updateReviewStatus,
 } from "../lib/api";
 
@@ -46,6 +49,7 @@ export function Dashboard() {
   const [data, setData] = useState<DashboardData>(fallbackData);
   const [graph, setGraph] = useState<GraphData>(fallbackGraph);
   const [status, setStatus] = useState<"loading" | "live" | "fallback">("loading");
+  const [query, setQuery] = useState("");
 
   async function refresh() {
     setStatus("loading");
@@ -122,7 +126,12 @@ export function Dashboard() {
           <div className="top-actions">
             <div className="search">
               <Search size={14} />
-              <span>Search experiments, pages, runs</span>
+              <input
+                aria-label="Search experiments, pages, runs"
+                placeholder="Search experiments, pages, runs"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
               <kbd>⌘K</kbd>
             </div>
             <span className={status === "live" ? "status live" : "status"}>
@@ -134,12 +143,12 @@ export function Dashboard() {
           </div>
         </header>
         <section className="screen">
-          {active === "experiments" ? <ExperimentsView data={data} /> : null}
-          {active === "runs" ? <RunsView data={data} /> : null}
+          {active === "experiments" ? <ExperimentsView data={data} query={query} /> : null}
+          {active === "runs" ? <RunsView data={data} query={query} /> : null}
           {active === "review" ? <ReviewView items={data.review_queue} /> : null}
           {active === "brief" ? <BriefView data={data} /> : null}
-          {active === "issues" ? <IssuesView onChanged={refresh} /> : null}
-          {active === "graph" ? <GraphView graph={graph} /> : null}
+          {active === "issues" ? <IssuesView graph={graph} onChanged={refresh} /> : null}
+          {active === "graph" ? <GraphView graph={graph} query={query} /> : null}
           {active === "health" ? <HealthView data={data} /> : null}
         </section>
       </main>
@@ -147,12 +156,18 @@ export function Dashboard() {
   );
 }
 
-function ExperimentsView({ data }: { data: DashboardData }) {
+function ExperimentsView({ data, query }: { data: DashboardData; query: string }) {
   const selected = data.experiments[0];
+  const experiments = data.experiments.filter((experiment) => matchesQuery(query, [
+    experiment.id,
+    experiment.title,
+    experiment.hypothesis,
+    experiment.status,
+  ]));
   return (
     <div className="split">
       <div className="pane">
-        <PaneHeader title="Experiments" subtitle={`${data.experiments.length} research threads`} />
+        <PaneHeader title="Experiments" subtitle={`${experiments.length} research threads`} />
         <div className="table">
           <div className="row head">
             <span>Experiment</span>
@@ -160,7 +175,7 @@ function ExperimentsView({ data }: { data: DashboardData }) {
             <span>Conditions</span>
             <span>Results</span>
           </div>
-          {data.experiments.map((experiment) => (
+          {experiments.map((experiment) => (
             <div className="row" key={experiment.id}>
               <span>
                 <b>{experiment.title}</b>
@@ -194,29 +209,49 @@ function ExperimentsView({ data }: { data: DashboardData }) {
   );
 }
 
-function RunsView({ data }: { data: DashboardData }) {
-  const runs = data.story?.latest_churn_runs ?? [];
+function RunsView({ data, query }: { data: DashboardData; query: string }) {
+  const runs = (data.story?.latest_churn_runs ?? []).filter((run) => matchesQuery(query, [
+    run.run_id,
+    run.condition_id,
+    run.matrix_id,
+  ]));
+  const selected = runs[0];
   return (
-    <div className="pane full">
-      <PaneHeader title="Runs Needing Review" subtitle="red-green churn, forbidden edits, wrong-file edits" />
-      <div className="table">
-        <div className="row head">
-          <span>Run</span>
-          <span>Condition</span>
-          <span>Matrix</span>
-          <span>Failures</span>
-        </div>
-        {runs.map((run) => (
-          <div className="row" key={run.run_id}>
-            <span className="mono">{run.run_id}</span>
-            <span>{run.condition_id}</span>
-            <span className="mono">{run.matrix_id}</span>
-            <Pill tone={run.review_signals.test_failure_count > 0 ? "warn" : "neutral"}>
-              {run.review_signals.test_failure_count} test failure(s)
-            </Pill>
+    <div className="split">
+      <div className="pane">
+        <PaneHeader title="Runs Needing Review" subtitle="red-green churn, forbidden edits, wrong-file edits" />
+        <div className="table">
+          <div className="row head">
+            <span>Run</span>
+            <span>Condition</span>
+            <span>Matrix</span>
+            <span>Failures</span>
           </div>
-        ))}
-        {runs.length === 0 ? <EmptyState text="No churn runs in the current read model." /> : null}
+          {runs.map((run) => (
+            <div className="row" key={run.run_id}>
+              <span className="mono">{run.run_id}</span>
+              <span>{run.condition_id}</span>
+              <span className="mono">{run.matrix_id}</span>
+              <Pill tone={run.review_signals.test_failure_count > 0 ? "warn" : "neutral"}>
+                {run.review_signals.test_failure_count} test failure(s)
+              </Pill>
+            </div>
+          ))}
+          {runs.length === 0 ? <EmptyState text="No churn runs in the current read model." /> : null}
+        </div>
+      </div>
+      <div className="pane">
+        <PaneHeader title="Run Protocol Timeline" subtitle={selected?.run_id ?? "no run selected"} />
+        {selected ? (
+          <div className="timeline">
+            <TimelineRow label="brief_loaded" ok={selected.review_signals.test_failure_count === 0} />
+            <TimelineRow label="dependency_resolved" ok={selected.review_signals.wrong_file_edits === 0} />
+            <TimelineRow label="test_run" ok={selected.review_signals.test_failure_count === 0} />
+            <TimelineRow label="final_answer" ok={selected.review_signals.forbidden_edit_count === 0} />
+          </div>
+        ) : (
+          <EmptyState text="No run detail available." />
+        )}
       </div>
     </div>
   );
@@ -357,11 +392,15 @@ function BriefView({ data }: { data: DashboardData }) {
   );
 }
 
-function IssuesView({ onChanged }: { onChanged: () => void }) {
+function IssuesView({ graph, onChanged }: { graph: GraphData; onChanged: () => void }) {
   const [repo, setRepo] = useState("openai/openai-python");
   const [query, setQuery] = useState("responses api migration tool calls");
   const [limit, setLimit] = useState(3);
   const [message, setMessage] = useState("");
+  const [claimId, setClaimId] = useState("claim.issue.example-llm-sdk.upgrade-advice");
+  const [versionPageId, setVersionPageId] = useState("claim.github-issue.openai.openai-python.2677.versions");
+  const [localVersions, setLocalVersions] = useState("openai=2.21.0");
+  const claimNodes = graph.nodes.filter((node) => node.type === "claim");
 
   async function ingest() {
     setMessage("Ingesting GitHub issues...");
@@ -373,6 +412,27 @@ function IssuesView({ onChanged }: { onChanged: () => void }) {
       onChanged();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Issue ingestion failed.");
+    }
+  }
+
+  async function align() {
+    setMessage("Checking version alignment...");
+    try {
+      const result = await checkVersionAlignment(versionPageId, parseVersions(localVersions));
+      setMessage(`Version status: ${result.status}; mismatches: ${result.mismatches.length}; allowed use: ${result.allowed_use ?? "review"}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Version alignment failed.");
+    }
+  }
+
+  async function promote(kind: "knowledge" | "policy" | "intervention") {
+    setMessage(`Promoting ${claimId} to ${kind}...`);
+    try {
+      const result = await promoteClaim(claimId, kind);
+      setMessage(`Created ${result.type}: ${result.id} (${result.status}).`);
+      onChanged();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Promotion failed.");
     }
   }
 
@@ -407,17 +467,51 @@ function IssuesView({ onChanged }: { onChanged: () => void }) {
           <ContractItem icon={ShieldCheck} title="Review before policy" text="Promotion to policies or interventions stays draft until rationale and evidence ids are recorded." />
         </div>
       </div>
+      <div className="pane full-width">
+        <PaneHeader title="Version Alignment + Promotion" subtitle="review before policy" />
+        <div className="form-stack two-col">
+          <label className="field">
+            <span>Claim page</span>
+            <select value={claimId} onChange={(event) => setClaimId(event.target.value)}>
+              {[{ id: claimId, title: claimId, type: "claim", status: "draft" } as WikiNode, ...claimNodes]
+                .filter((node, index, all) => all.findIndex((item) => item.id === node.id) === index)
+                .map((node) => (
+                  <option key={node.id} value={node.id}>{node.id}</option>
+                ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Version claim page</span>
+            <input value={versionPageId} onChange={(event) => setVersionPageId(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>Local versions</span>
+            <input value={localVersions} onChange={(event) => setLocalVersions(event.target.value)} />
+          </label>
+          <div className="button-row">
+            <button className="command" onClick={align}>Check alignment</button>
+            <button className="command ok" onClick={() => promote("knowledge")}>Promote card</button>
+            <button className="command ok" onClick={() => promote("policy")}>Promote policy</button>
+            <button className="command ok" onClick={() => promote("intervention")}>Promote intervention</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function GraphView({ graph }: { graph: GraphData }) {
+function GraphView({ graph, query }: { graph: GraphData; query: string }) {
+  const nodes = graph.nodes.filter((node) => matchesQuery(query, [node.id, node.title, node.type, node.status]));
+  const selected = nodes[0];
+  const relatedEdges = selected
+    ? graph.edges.filter((edge) => edge.source === selected.id || edge.target === selected.id)
+    : graph.edges;
   return (
     <div className="split">
       <div className="pane">
-        <PaneHeader title="Wiki Pages" subtitle={`${graph.nodes.length} nodes`} />
+        <PaneHeader title="Wiki Pages" subtitle={`${nodes.length} nodes`} />
         <div className="table compact">
-          {graph.nodes.slice(0, 24).map((node) => (
+          {nodes.slice(0, 24).map((node) => (
             <div className="row three" key={node.id}>
               <span>
                 <b>{node.title}</b>
@@ -430,9 +524,19 @@ function GraphView({ graph }: { graph: GraphData }) {
         </div>
       </div>
       <div className="pane">
-        <PaneHeader title="Edges" subtitle={`${graph.edges.length} relations`} />
+        <PaneHeader title="Page Detail / Provenance" subtitle={selected?.id ?? "select a page"} />
+        {selected ? (
+          <div className="contract-list">
+            <article className="contract-card strong">
+              <span className="mono">{selected.type} / {selected.status}</span>
+              <h3>{selected.title}</h3>
+              <p>{selected.id}</p>
+            </article>
+          </div>
+        ) : null}
+        <PaneHeader title="Related Edges" subtitle={`${relatedEdges.length} relations`} />
         <div className="edge-map">
-          {graph.edges.slice(0, 36).map((edge, index) => (
+          {relatedEdges.slice(0, 36).map((edge, index) => (
             <div className="edge" key={`${edge.source}-${edge.target}-${index}`}>
               <span>{edge.source}</span>
               <b>{edge.type}</b>
@@ -519,6 +623,35 @@ function ContractItem({
       <h3>{title}</h3>
       <p>{text}</p>
     </article>
+  );
+}
+
+function TimelineRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="timeline-row">
+      {ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function matchesQuery(query: string, values: Array<string | number | null | undefined>) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return values.some((value) => String(value ?? "").toLowerCase().includes(normalized));
+}
+
+function parseVersions(input: string) {
+  return Object.fromEntries(
+    input
+      .split(/[,\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const [name, version] = item.split("=");
+        return [name?.trim(), version?.trim()];
+      })
+      .filter(([name, version]) => name && version),
   );
 }
 

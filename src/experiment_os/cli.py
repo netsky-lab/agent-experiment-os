@@ -21,7 +21,7 @@ from experiment_os.services.matrix import ExperimentMatrixRunner
 from experiment_os.services.review import ReviewService
 from experiment_os.services.runs import RunRecorder
 from experiment_os.services.seed import SeedService
-from experiment_os.db.models import WikiPage
+from experiment_os.db.models import Brief, Experiment, ExperimentRunResult, Run, WikiPage
 
 app = typer.Typer(help="Experiment OS developer CLI.")
 db_app = typer.Typer(help="Database commands.")
@@ -62,6 +62,33 @@ def db_seed() -> None:
     with session_scope() as session:
         result = SeedService(session).seed()
     typer.echo(json.dumps(result, indent=2))
+
+
+@db_app.command("reset-demo")
+def db_reset_demo() -> None:
+    """Remove seeded demo rows and seed them again."""
+    prefixes = ("demo.run.", "result.demo.run.")
+    with session_scope() as session:
+        deleted = {"runs": 0, "results": 0, "experiments": 0, "briefs": 0}
+        for result in session.query(ExperimentRunResult).all():
+            if result.id.startswith(prefixes[1]):
+                session.delete(result)
+                deleted["results"] += 1
+        for run in session.query(Run).all():
+            if run.id.startswith(prefixes[0]):
+                session.delete(run)
+                deleted["runs"] += 1
+        for experiment in session.query(Experiment).all():
+            if experiment.experiment_metadata.get("demo"):
+                session.delete(experiment)
+                deleted["experiments"] += 1
+        demo_brief = session.get(Brief, "brief.demo.agent-contract")
+        if demo_brief is not None:
+            session.delete(demo_brief)
+            deleted["briefs"] += 1
+        session.flush()
+        seeded = SeedService(session).seed()
+    typer.echo(json.dumps({"deleted": deleted, "seeded": seeded}, indent=2))
 
 
 @db_app.command("prune-test-pages")

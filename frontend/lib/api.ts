@@ -15,6 +15,8 @@ export type ReviewItem = {
   summary: string;
 };
 
+export type WikiNode = { id: string; type: string; title: string; status: string };
+
 export type ContractSurface = {
   id: string;
   endpoint: string;
@@ -71,7 +73,7 @@ export type DashboardData = {
 };
 
 export type GraphData = {
-  nodes: Array<{ id: string; type: string; title: string; status: string }>;
+  nodes: WikiNode[];
   edges: Array<{ source: string; target: string; type: string }>;
 };
 
@@ -130,6 +132,37 @@ export async function ingestIssueEvidence(repo: string, query: string, limit: nu
     knowledge_card: string | null;
     allowed_use: string;
   }>;
+}
+
+export async function checkVersionAlignment(pageId: string, localVersions: Record<string, string>) {
+  if (!apiBase) throw new Error("NEXT_PUBLIC_EXPERIMENT_OS_API_URL is not configured");
+  const response = await fetch(`${apiBase}/issue-knowledge/${encodeURIComponent(pageId)}/version-alignment`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({ local_versions: localVersions }),
+  });
+  if (!response.ok) throw new Error(`Version alignment failed: ${response.status}`);
+  return response.json() as Promise<{
+    status: string;
+    matches: Array<{ package: string; issue_version: string; local_version: string }>;
+    mismatches: Array<{ package: string; issue_version: string; local_version: string }>;
+    allowed_use?: string | null;
+  }>;
+}
+
+export async function promoteClaim(claimId: string, kind: "knowledge" | "policy" | "intervention") {
+  if (!apiBase) throw new Error("NEXT_PUBLIC_EXPERIMENT_OS_API_URL is not configured");
+  const response = await fetch(`${apiBase}/claims/${encodeURIComponent(claimId)}/promote/${kind}`, {
+    method: "POST",
+    headers: writeHeaders(),
+    body: JSON.stringify({
+      title: null,
+      applies_to: { evidence_type: "github_issue" },
+      mitigates: ["failure.stale-api-drift"],
+    }),
+  });
+  if (!response.ok) throw new Error(`Promotion failed: ${response.status}`);
+  return response.json() as Promise<{ id: string; type: string; status: string; title: string }>;
 }
 
 export const fallbackData: DashboardData = {

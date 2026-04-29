@@ -1,7 +1,10 @@
-.PHONY: up down dev-proxy migrate seed test compile check ci api mcp frontend frontend-build frontend-typecheck frontend-audit api-drift-matrix version-trap-hard-matrix
+.PHONY: up up-prod down dev-proxy migrate seed seed-reset test compile check ci api mcp frontend frontend-build frontend-typecheck frontend-audit frontend-smoke api-drift-matrix version-trap-hard-matrix
 
 up:
 	docker compose up -d postgres app frontend
+
+up-prod:
+	docker compose -f docker-compose.prod.yml up -d --build
 
 down:
 	docker compose down
@@ -17,6 +20,9 @@ migrate:
 
 seed:
 	docker compose run --rm app uv run experiment-os db seed
+
+seed-reset:
+	docker compose run --rm app uv run experiment-os db reset-demo
 
 test:
 	docker compose run --rm app uv run pytest
@@ -43,6 +49,9 @@ frontend-build:
 
 frontend-audit:
 	cd frontend && npm audit --omit=dev
+
+frontend-smoke:
+	cd frontend && npm run smoke
 
 mcp:
 	docker compose run --rm app uv run experiment-os mcp serve

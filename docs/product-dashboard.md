@@ -12,6 +12,7 @@ Current views:
 - `Agent Contract`: demo agent presentation contract with must-load pages and dependency edges.
 - `Review Queue`: accept/reject actions with rationale and evidence ids.
 - `Issue Evidence`: GitHub issue ingestion into source-backed, evidence-only claims.
+- `Issue Evidence`: local version alignment and claim promotion into draft knowledge, policy, or intervention pages.
 - `Knowledge Graph`: wiki pages and edge read model.
 - `Knowledge Health`: stale and duplicate knowledge candidates.
 

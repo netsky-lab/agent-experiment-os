@@ -179,6 +179,20 @@ button {
   color: var(--ink-2);
 }
 
+.search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ink-1);
+  font: inherit;
+  outline: 0;
+}
+
+.search input::placeholder {
+  color: var(--ink-2);
+}
+
 kbd {
   margin-left: auto;
   border-radius: 3px;
@@ -454,6 +468,7 @@ kbd {
 }
 
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   border: 1px solid var(--line);

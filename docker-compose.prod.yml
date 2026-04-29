@@ -2,16 +2,11 @@ services:
   app:
     build:
       context: .
-    container_name: experiment-os-app
-    working_dir: /workspace
     environment:
       DATABASE_URL: postgresql://experiment_os:experiment_os@postgres:5432/experiment_os
-      EXPERIMENT_OS_API_KEY: ${EXPERIMENT_OS_API_KEY:-}
+      EXPERIMENT_OS_API_KEY: ${EXPERIMENT_OS_API_KEY:-change-me-before-exposing-writes}
     ports:
       - "8080:8080"
-    volumes:
-      - .:/workspace
-      - uv_cache:/root/.cache/uv
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,17 +26,14 @@ services:
       && uv run experiment-os api serve --host 0.0.0.0 --port 8080"
 
   frontend:
-    image: node:22-bookworm
-    container_name: experiment-os-frontend
-    working_dir: /workspace/frontend
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     environment:
       NEXT_PUBLIC_EXPERIMENT_OS_API_URL: ${NEXT_PUBLIC_EXPERIMENT_OS_API_URL:-http://127.0.0.1:8080}
       NEXT_PUBLIC_EXPERIMENT_OS_API_KEY: ${NEXT_PUBLIC_EXPERIMENT_OS_API_KEY:-}
     ports:
       - "3000:3000"
-    volumes:
-      - .:/workspace
-      - frontend_node_modules:/workspace/frontend/node_modules
     depends_on:
       app:
         condition: service_healthy
@@ -55,17 +47,13 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
 
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: experiment-os-postgres
     environment:
       POSTGRES_DB: experiment_os
       POSTGRES_USER: experiment_os
       POSTGRES_PASSWORD: experiment_os
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -77,5 +65,3 @@ services:
 
 volumes:
   postgres_data:
-  uv_cache:
-  frontend_node_modules:

@@ -66,7 +66,19 @@ class IssueIngestRequest(BaseModel):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Experiment OS API", version="0.1.0")
+    app = FastAPI(
+        title="Experiment OS API",
+        version="0.1.0",
+        openapi_tags=[
+            {"name": "health", "description": "Runtime readiness and dependency checks."},
+            {"name": "experiments", "description": "Experiment matrices, stories, and status."},
+            {"name": "runs", "description": "Run timelines, churn, and completion contracts."},
+            {"name": "briefs", "description": "Agent-facing work briefs and presentation contracts."},
+            {"name": "knowledge", "description": "Wiki graph, retrieval, issue evidence, and provenance."},
+            {"name": "review", "description": "Human review, policy promotion, and write workflows."},
+            {"name": "ui", "description": "Dashboard bootstrap and frontend read contracts."},
+        ],
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
@@ -77,16 +89,16 @@ def create_app() -> FastAPI:
     if static_dir.exists():
         app.mount("/app", StaticFiles(directory=static_dir, html=True), name="app")
 
-    @app.get("/health")
+    @app.get("/health", tags=["health"])
     def health() -> dict[str, Any]:
         return {"ok": True, "database": check_database()}
 
-    @app.get("/experiments")
+    @app.get("/experiments", tags=["experiments"])
     def list_experiments() -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).list_experiments()
 
-    @app.get("/experiments/{experiment_id}")
+    @app.get("/experiments/{experiment_id}", tags=["experiments"])
     def experiment_detail(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -94,7 +106,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/matrix")
+    @app.get("/experiments/{experiment_id}/matrix", tags=["experiments"])
     def experiment_matrix(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -102,7 +114,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/matrix/latest")
+    @app.get("/experiments/{experiment_id}/matrix/latest", tags=["experiments"])
     def latest_experiment_matrix(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -110,7 +122,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/matrix/latest-comparison")
+    @app.get("/experiments/{experiment_id}/matrix/latest-comparison", tags=["experiments"])
     def latest_matrix_comparison_candidate(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -120,7 +132,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/story")
+    @app.get("/experiments/{experiment_id}/story", tags=["experiments"])
     def experiment_story(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -128,7 +140,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/protocol-compliance")
+    @app.get("/experiments/{experiment_id}/protocol-compliance", tags=["experiments"])
     def protocol_compliance(experiment_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -136,7 +148,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/matrix/compare")
+    @app.get("/experiments/{experiment_id}/matrix/compare", tags=["experiments"])
     def compare_matrices(
         experiment_id: str,
         left_matrix_id: str,
@@ -152,7 +164,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/matrix/regression")
+    @app.get("/experiments/{experiment_id}/matrix/regression", tags=["experiments"])
     def matrix_regression(
         experiment_id: str,
         left_matrix_id: str,
@@ -168,7 +180,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/experiments/{experiment_id}/status")
+    @app.post("/experiments/{experiment_id}/status", tags=["experiments", "review"])
     def set_experiment_status(
         experiment_id: str,
         update: ExperimentStatusUpdate,
@@ -185,7 +197,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=400, detail=str(error)) from error
 
-    @app.get("/runs/{run_id}")
+    @app.get("/runs/{run_id}", tags=["runs"])
     def run_detail(run_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -193,7 +205,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/runs/{run_id}/churn")
+    @app.get("/runs/{run_id}/churn", tags=["runs"])
     def run_churn(run_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -201,7 +213,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/runs/{run_id}/completion-contract")
+    @app.get("/runs/{run_id}/completion-contract", tags=["runs"])
     def run_completion_contract(run_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -209,7 +221,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/runs/{run_id}/next-required-action")
+    @app.get("/runs/{run_id}/next-required-action", tags=["runs"])
     def run_next_required_action(run_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -217,7 +229,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/churn")
+    @app.get("/experiments/{experiment_id}/churn", tags=["experiments", "runs"])
     def experiment_churn(
         experiment_id: str,
         matrix_id: str | None = None,
@@ -231,7 +243,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/experiments/{experiment_id}/churn/latest")
+    @app.get("/experiments/{experiment_id}/churn/latest", tags=["experiments", "runs"])
     def latest_churn_runs(experiment_id: str, limit: int = 20) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -242,7 +254,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/briefs")
+    @app.post("/briefs", tags=["briefs"])
     def create_brief(
         request: BriefRequest,
         x_api_key: str | None = Header(default=None, alias="x-api-key"),
@@ -251,7 +263,7 @@ def create_app() -> FastAPI:
         with session_scope() as session:
             return BriefCompiler(session).compile(request)
 
-    @app.get("/briefs/{brief_id}/agent-work-context")
+    @app.get("/briefs/{brief_id}/agent-work-context", tags=["briefs"])
     def agent_work_context(brief_id: str, dependency_depth: int = 2) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -262,7 +274,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/briefs/{brief_id}/presentation-preview")
+    @app.get("/briefs/{brief_id}/presentation-preview", tags=["briefs"])
     def presentation_preview(brief_id: str, dependency_depth: int = 2) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -279,7 +291,7 @@ def create_app() -> FastAPI:
                 "completion_contract": context["completion_contract"],
             }
 
-    @app.post("/knowledge/search")
+    @app.post("/knowledge/search", tags=["knowledge"])
     def search_knowledge(request: KnowledgeSearchRequest) -> dict[str, Any]:
         with session_scope() as session:
             return {
@@ -293,7 +305,7 @@ def create_app() -> FastAPI:
                 ),
             }
 
-    @app.post("/issue-knowledge/search")
+    @app.post("/issue-knowledge/search", tags=["knowledge"])
     def search_issue_knowledge(request: IssueKnowledgeSearchRequest) -> dict[str, Any]:
         query = " ".join(
             part for part in [request.library, request.topic, request.version] if part
@@ -308,7 +320,7 @@ def create_app() -> FastAPI:
             )
             return {"query": query, "results": results}
 
-    @app.post("/issue-knowledge/{page_id}/version-alignment")
+    @app.post("/issue-knowledge/{page_id}/version-alignment", tags=["knowledge"])
     def issue_version_alignment(
         page_id: str,
         request: VersionAlignmentRequest,
@@ -322,7 +334,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/issue-knowledge/ingest")
+    @app.post("/issue-knowledge/ingest", tags=["knowledge", "review"])
     def ingest_issue_knowledge(
         request: IssueIngestRequest,
         x_api_key: str | None = Header(default=None, alias="x-api-key"),
@@ -335,22 +347,22 @@ def create_app() -> FastAPI:
                 limit=request.limit,
             )
 
-    @app.get("/review-queue")
+    @app.get("/review-queue", tags=["review"])
     def review_queue(limit: int = 50) -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).review_queue(limit=limit)
 
-    @app.get("/policy-candidates")
+    @app.get("/policy-candidates", tags=["review"])
     def policy_candidates(limit: int = 50) -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).policy_candidates(limit=limit)
 
-    @app.get("/policy-candidates/categories")
+    @app.get("/policy-candidates/categories", tags=["review"])
     def policy_candidate_categories(limit: int = 50) -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).policy_candidate_categories(limit=limit)
 
-    @app.get("/briefs/{brief_id}/evidence-graph")
+    @app.get("/briefs/{brief_id}/evidence-graph", tags=["briefs", "knowledge"])
     def evidence_graph(brief_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -358,7 +370,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/review-actions/{page_id}")
+    @app.get("/review-actions/{page_id}", tags=["review"])
     def review_actions(page_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -366,7 +378,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/pages/{page_id}/provenance")
+    @app.get("/pages/{page_id}/provenance", tags=["knowledge"])
     def page_provenance(page_id: str) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -374,27 +386,27 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/wiki/graph")
+    @app.get("/wiki/graph", tags=["knowledge"])
     def wiki_graph() -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).wiki_graph()
 
-    @app.get("/knowledge/stale")
+    @app.get("/knowledge/stale", tags=["knowledge"])
     def stale_knowledge() -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).stale_knowledge()
 
-    @app.get("/knowledge/duplicates")
+    @app.get("/knowledge/duplicates", tags=["knowledge"])
     def duplicate_knowledge() -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).duplicate_knowledge()
 
-    @app.get("/ui/contract")
+    @app.get("/ui/contract", tags=["ui"])
     def ui_contract() -> dict[str, Any]:
         with session_scope() as session:
             return DashboardReadService(session).ui_contract()
 
-    @app.get("/ui/bootstrap")
+    @app.get("/ui/bootstrap", tags=["ui"])
     def ui_bootstrap(experiment_id: str | None = None) -> dict[str, Any]:
         with session_scope() as session:
             try:
@@ -402,7 +414,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/review-actions/{page_id}/status")
+    @app.post("/review-actions/{page_id}/status", tags=["review"])
     def set_status(
         page_id: str,
         update: StatusUpdate,
@@ -421,7 +433,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/claims/{claim_id}/promote/knowledge")
+    @app.post("/claims/{claim_id}/promote/knowledge", tags=["review", "knowledge"])
     def promote_knowledge(
         claim_id: str,
         request: PromotionRequest,
@@ -434,7 +446,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/claims/{claim_id}/promote/policy")
+    @app.post("/claims/{claim_id}/promote/policy", tags=["review", "knowledge"])
     def promote_policy(
         claim_id: str,
         request: PromotionRequest,
@@ -451,7 +463,7 @@ def create_app() -> FastAPI:
             except ValueError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.post("/claims/{claim_id}/promote/intervention")
+    @app.post("/claims/{claim_id}/promote/intervention", tags=["review", "knowledge"])
     def promote_intervention(
         claim_id: str,
         request: PromotionRequest,
