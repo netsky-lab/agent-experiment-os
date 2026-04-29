@@ -7,6 +7,7 @@ from experiment_os.http_api import create_app
 from experiment_os.repositories.wiki import WikiRepository
 from experiment_os.services.briefs import BriefCompiler
 from experiment_os.services.experiments import ExperimentRunner
+from experiment_os.services.issues import GitHubIssueIngestor
 
 
 def test_http_api_exposes_dashboard_read_models(session):
@@ -192,6 +193,24 @@ def test_http_api_exposes_agent_work_context_and_search(session):
 
 def test_http_api_exposes_lifecycle_and_issue_version_alignment(session):
     ExperimentRunner(session).seed_drizzle_experiment()
+    GitHubIssueIngestor(session).ingest(
+        repo="drizzle-team/drizzle-orm",
+        query="migration default",
+        issues=[
+            {
+                "number": 5661,
+                "title": "Migration default regression",
+                "body": """
+### What version of `drizzle-orm` are you using?
+1.0.0-beta.22
+""",
+                "html_url": "https://github.com/drizzle-team/drizzle-orm/issues/5661",
+                "url": "https://api.github.com/repos/drizzle-team/drizzle-orm/issues/5661",
+                "state": "open",
+                "labels": [{"name": "bug"}],
+            }
+        ],
+    )
     session.commit()
     client = TestClient(create_app())
 
